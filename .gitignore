@@ -1,0 +1,15 @@
+/target
+/dist
+__pycache__/
+*.pyc
+**/*.rs.bk
+.idea
+.vscode
+*.swp
+.env
+.env.*
+.pi-app/
+.pi/
+crates/pi-desktop/binaries/pi-app-server
+crates/pi-desktop/binaries/pi-app-server-*
+

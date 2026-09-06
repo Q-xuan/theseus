@@ -1,0 +1,20 @@
+[package]
+name = "pi-app-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "stdio JSON-RPC app-server: thread/start, turn/start, SessionEvent stream"
+
+[dependencies]
+pi-core.workspace = true
+pi-llm.workspace = true
+pi-protocol.workspace = true
+pi-tools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[[bin]]
+name = "pi-app-server"
+path = "src/main.rs"

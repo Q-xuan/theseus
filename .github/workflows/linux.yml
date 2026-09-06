@@ -1,0 +1,18 @@
+name: linux
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@1.83.0
+      - name: packaging contract
+        run: python3 packaging/build-desktop.py --check
+      - name: test (no gui)
+        run: cargo test --workspace
+      - name: check (no gui)
+        run: cargo check --workspace

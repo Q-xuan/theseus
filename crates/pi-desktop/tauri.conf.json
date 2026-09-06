@@ -1,0 +1,47 @@
+{
+  "$schema": "https://schema.tauri.app/config/2",
+  "productName": "pi",
+  "version": "0.5.0",
+  "identifier": "dev.piapp.desktop",
+  "build": {
+    "frontendDist": "ui",
+    "beforeBuildCommand": "python3 ../../packaging/prepare_sidecar.py"
+  },
+  "app": {
+    "withGlobalTauri": false,
+    "windows": [],
+    "security": {
+      "csp": null
+    }
+  },
+  "bundle": {
+    "active": true,
+    "targets": ["app", "dmg", "nsis"],
+    "createUpdaterArtifacts": false,
+    "category": "DeveloperTool",
+    "shortDescription": "pi desktop — session log, tool loop, one gate",
+    "longDescription": "Local window over the pi-app-server stdio sidecar. Double-click opens the window. PI_LLM_API_KEY is inherited from the environment only; there is no key box, updater, or store signature requirement.",
+    "icon": [
+      "icons/32x32.png",
+      "icons/128x128.png",
+      "icons/128x128@2x.png",
+      "icons/icon.icns",
+      "icons/icon.ico"
+    ],
+    "externalBin": ["binaries/pi-app-server"],
+    "macOS": {
+      "signingIdentity": "-",
+      "minimumSystemVersion": "11.0",
+      "hardenedRuntime": false
+    },
+    "windows": {
+      "certificateThumbprint": null,
+      "digestAlgorithm": "sha256",
+      "timestampUrl": "",
+      "nsis": {
+        "installMode": "currentUser",
+        "displayLanguageSelector": false
+      }
+    }
+  }
+}
