@@ -20,6 +20,12 @@
         <header class="thread-bar">
           <button type="button" id="toggle-rail" class="ghost" aria-label="最近线程">最近</button>
           <div id="title" class="title">未打开对话</div>
+          <div id="thread-id-box" class="thread-id hidden">
+            <span id="thread-id" class="thread-id-value" title=""></span>
+            <button type="button" id="copy-thread-id" class="ghost thread-id-copy" aria-label="复制 thread id" disabled>
+              复制 id
+            </button>
+          </div>
           <div id="meta" class="meta">未连接</div>
           <div id="run-state" class="run-state hidden">进行中</div>
         </header>

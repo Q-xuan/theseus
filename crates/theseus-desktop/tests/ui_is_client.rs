@@ -37,8 +37,19 @@ fn desktop_ui_stays_a_client() {
         "composer dock for the one gate"
     );
     assert!(html.contains("新对话"));
+    assert!(html.contains("id=\"thread-id\""), "header shows protocol thread id");
+    assert!(html.contains("id=\"copy-thread-id\""), "copy thread id control");
+    assert!(html.contains("复制 id"));
     assert!(!html.to_lowercase().contains("settings"));
     assert!(!html.contains("type=\"search\""));
+    assert!(!html.contains("short-link"));
+    assert!(!html.contains("oauth"));
+    assert!(!html.contains("OAuth"));
+    assert!(!js.contains("shareUrl"));
+    assert!(!js.contains("shortLink"));
+    assert!(!js.contains("THESEUS_LLM_MODEL"));
+    assert!(!html.contains("turn-anchor"));
+    assert!(!html.contains("timeline"));
     assert!(js.contains("item/agentMessage/delta"));
     assert!(js.contains("thread/start"));
     assert!(js.contains("thread/resume"));
@@ -50,6 +61,8 @@ fn desktop_ui_stays_a_client() {
     assert!(js.contains("readableError"));
     assert!(js.contains("turn-mark"));
     assert!(js.contains("tool-head"));
+    assert!(js.contains("clipboard.writeText") || js.contains("copyText"));
+    assert!(js.contains("showThreadId"));
     assert!(
         !js.contains("session/event"),
         "UI must project Item/delta, not raw session log"
@@ -74,6 +87,7 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     let html = include_str!("../ui/index.html");
     assert!(html.contains("需要确认才能继续"));
     assert!(html.contains("id=\"run-state\""));
+    assert!(html.contains("id=\"thread-id-box\""));
     assert!(!html.contains("Plugins"));
     assert!(!html.contains("Pull requests"));
     assert!(!html.contains("Scheduled"));

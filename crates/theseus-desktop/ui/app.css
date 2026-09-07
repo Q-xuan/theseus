@@ -186,10 +186,38 @@ body {
 }
 
 .title {
+  flex: 1 1 auto;
+  min-width: 0;
   font-weight: 580;
   overflow: hidden;
   text-overflow: ellipsis;
   white-space: nowrap;
+}
+
+.thread-id {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.thread-id-value {
+  color: var(--muted);
+  font-size: 11px;
+  letter-spacing: 0.02em;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  max-width: 16em;
+}
+
+.thread-id-copy {
+  flex: none;
+  padding: 2px 6px;
+  font-size: 11px;
+  line-height: 1.2;
+  border-radius: 4px;
 }
 
 .meta {
@@ -230,7 +258,8 @@ body {
 .sessions-empty.hidden,
 .run-state.hidden,
 .composer.hidden,
-.tool-body.hidden {
+.tool-body.hidden,
+.thread-id.hidden {
   display: none;
 }
 
