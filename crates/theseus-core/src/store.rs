@@ -371,7 +371,6 @@ mod tests {
         assert!(session_log_path("/data", "").is_err());
     }
 
-    #[test]
     fn clear_session_env() {
         std::env::remove_var(ENV_SESSIONS_DIR);
         std::env::remove_var(ENV_SESSIONS_DIR_LEGACY);
