@@ -6,10 +6,10 @@ Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 
 
 推送已存在的 `v*` 标签（或在 Actions 里对**已有**标签 `workflow_dispatch`）后，[`.github/workflows/release-desktop.yml`](../.github/workflows/release-desktop.yml) 在 **macos-latest** / **windows-latest** 本机 runner 上跑下面同一条 `python3 packaging/build-desktop.py`，把产物挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。**不会**自动创建或推送标签。
 
-| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.5.0） |
+| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.6.0） |
 | --- | --- |
-| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.5.0_aarch64.dmg`；另附 `Theseus_0.5.0_aarch64.app.zip`（解压得 `Theseus.app`） |
-| Windows（`windows-latest` ≈ x64） | `Theseus_0.5.0_x64-setup.exe`（当前用户 NSIS） |
+| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.6.0_aarch64.dmg`；另附 `Theseus_0.6.0_aarch64.app.zip`（解压得 `Theseus.app`） |
+| Windows（`windows-latest` ≈ x64） | `Theseus_0.6.0_x64-setup.exe`（当前用户 NSIS） |
 | 便携 zip | 默认 `build-desktop.py` **不**打便携目录；本机 `python3 packaging/build-desktop.py --portable` 才有。CI 若看到 `dist/theseus-portable-*` 会顺带打成 zip |
 
 **未签名。** 无 Apple 公证 / Developer ID，无 Windows Authenticode，无 Tauri updater。
@@ -59,8 +59,8 @@ python3 packaging/build-desktop.py --portable
 | 平台 | 产物 | 路径 |
 | --- | --- | --- |
 | macOS | 可双击的 `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.5.0_*.dmg` |
-| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.5.0_*-setup.exe` |
+| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.6.0_*.dmg` |
+| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.6.0_*-setup.exe` |
 | 任一 | 便携目录 | `dist/theseus-portable-<triple>/` |
 
 `.app` 里 sidecar 在 `Contents/MacOS/theseus-app-server`（与 `Theseus` 同级）。NSIS / 便携则是 `theseus-app-server.exe` 紧挨主程序。`locate` 先看 `THESEUS_APP_SERVER_BIN`，再看可执行文件旁边，最后才是源码树的 `target/`。

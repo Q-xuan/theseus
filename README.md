@@ -289,9 +289,9 @@ cargo run -p theseus-desktop --features gui
 推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.5.0**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.5.0_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.5.0_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.5.0_x64-setup.exe`（当前用户 NSIS）
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.0**，不一定等于 git 标签）：
+   - macOS：`Theseus_0.6.0_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.0_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
+   - Windows：`Theseus_0.6.0_x64-setup.exe`（当前用户 NSIS）
 3. **未签名**：
    - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
    - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
@@ -311,8 +311,8 @@ python3 packaging/build-desktop.py
 | 产物 | 路径（相对仓库根） |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.5.0_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.5.0_*-setup.exe` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.0_*.dmg` |
+| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.0_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
 
 包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
