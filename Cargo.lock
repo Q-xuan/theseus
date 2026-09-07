@@ -3615,6 +3615,7 @@ dependencies = [
 name = "theseus-core"
 version = "0.1.0"
 dependencies = [
+ "dirs",
  "serde_json",
  "theseus-protocol",
  "thiserror 2.0.20",

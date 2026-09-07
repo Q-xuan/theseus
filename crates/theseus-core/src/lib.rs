@@ -21,6 +21,6 @@ pub use project::{project_item, project_items, project_items_for_turn};
 pub use session::{preview_from_events, Session, SessionError};
 pub use store::{
     default_sessions_dir, first_nonempty_env, list_session_files, read_jsonl, resolve_sessions_dir,
-    session_log_path, PersistError, SessionFile, SessionLog, ENV_HOME, ENV_HOME_LEGACY,
-    ENV_SESSIONS_DIR, ENV_SESSIONS_DIR_LEGACY,
+    session_log_path, user_home_dir, PersistError, SessionFile, SessionLog, ENV_HOME,
+    ENV_HOME_LEGACY, ENV_SESSIONS_DIR, ENV_SESSIONS_DIR_LEGACY,
 };

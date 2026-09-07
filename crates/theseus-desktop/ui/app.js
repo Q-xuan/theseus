@@ -35,7 +35,7 @@
   function readableError(err) {
     const raw = (err && err.message) || (typeof err === "string" ? err : "");
     if (/API_KEY/i.test(raw) || (/is not set/i.test(raw) && /LLM/i.test(raw))) {
-      return "模型密钥没有传到 sidecar。在用户/系统环境变量里设置后，关掉窗口再打开。不要把密钥写进软件。这一轮没有写入日志。";
+      return "未配置 THESEUS_LLM_API_KEY";
     }
     const cleaned = raw.replace(/THESEUS_[A-Z0-9_]+|PI_[A-Z0-9_]+/g, "配置");
     return cleaned || "请求失败。";

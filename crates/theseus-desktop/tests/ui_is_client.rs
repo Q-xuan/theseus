@@ -5,7 +5,12 @@ fn desktop_ui_stays_a_client() {
     let html = include_str!("../ui/index.html");
     let js = include_str!("../ui/app.js");
     let css = include_str!("../ui/app.css");
-    for hay in [html, js, css] {
+    assert!(
+        js.contains("未配置 THESEUS_LLM_API_KEY"),
+        "missing-key banner is a short env-var hint"
+    );
+    let js_without_banner = js.replace("未配置 THESEUS_LLM_API_KEY", "");
+    for hay in [html, js_without_banner.as_str(), css] {
         assert!(!hay.contains("THESEUS_LLM_API_KEY"));
         assert!(!hay.contains("PI_LLM_API_KEY"));
         assert!(!hay.contains("apiKey"));
@@ -61,8 +66,13 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     assert!(css.contains("SidebarRoot.module.css"));
     assert!(css.contains("ApprovalPanel"));
     assert!(css.contains("GenericToolCard"));
-    assert!(css.contains("38px"), "dsh new-session bar height");
+    assert!(css.contains("28px"), "compact new-session bar height");
     assert!(css.contains("gate-strip"), "amber approval strip");
+    assert!(css.contains("#0c0c0c"), "Codex-like near-black paper");
+    assert!(css.contains("#161616"), "charcoal rail");
+    assert!(css.contains("#1a2a40"), "muted-blue selected row");
+    assert!(!css.contains("Plugins"));
+    assert!(!css.contains("Pull requests"));
     let html = include_str!("../ui/index.html");
     assert!(html.contains("需要确认才能继续"));
     assert!(html.contains("id=\"run-state\""));
@@ -79,4 +89,26 @@ fn rust_shell_does_not_take_key_as_flag() {
     assert!(!main.contains("updater"));
     assert!(!gui.contains("updater"));
     assert!(!gui.contains("Updater"));
+}
+
+#[test]
+fn release_gui_uses_windows_subsystem_and_quiet_stdio() {
+    let main = include_str!("../src/main.rs");
+    assert!(
+        main.contains("windows_subsystem"),
+        "Release + gui must not open a Windows console"
+    );
+    assert!(main.contains("feature = \"gui\""));
+    assert!(main.contains("not(debug_assertions)"));
+    let gui = include_str!("../src/gui.rs");
+    assert!(
+        gui.contains("verbose_stdio"),
+        "product GUI must gate UI-on-http / sessions spam"
+    );
+    assert!(gui.contains("theseus-desktop UI on"));
+    let sidecar = include_str!("../src/sidecar.rs");
+    assert!(sidecar.contains("CREATE_NO_WINDOW"));
+    assert!(sidecar.contains("verbose_stdio"));
+    let lib = include_str!("../src/lib.rs");
+    assert!(lib.contains("fn verbose_stdio"));
 }

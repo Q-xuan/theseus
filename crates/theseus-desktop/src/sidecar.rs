@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::locate::{locate_app_server, LocateError};
 
-const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.6.0"}}}"#;
+const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.6.1"}}}"#;
 const SHUTDOWN_LINE: &str = r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":{}}"#;
 
 #[derive(Debug, thiserror::Error)]
@@ -50,9 +50,14 @@ impl Sidecar {
 
     pub fn spawn(path: &Path) -> Result<(Self, Receiver<String>), SidecarError> {
         let mut cmd = Command::new(path);
-        cmd.stdin(Stdio::piped())
-            .stdout(Stdio::piped())
-            .stderr(Stdio::inherit());
+        cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
+        // Product GUI: swallow sidecar stderr (`sessions: …` / locate noise).
+        // Preview and debug still inherit so the terminal can show it.
+        if crate::verbose_stdio() {
+            cmd.stderr(Stdio::inherit());
+        } else {
+            cmd.stderr(Stdio::null());
+        }
         // Inherit the parent environment (including THESEUS_LLM_API_KEY / PI_LLM_API_KEY).
         // Never pass the key as an argument.
         debug_assert!(
@@ -71,7 +76,10 @@ impl Sidecar {
         {
             use std::os::windows::process::CommandExt;
             const CREATE_NEW_PROCESS_GROUP: u32 = 0x00000200;
-            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP);
+            // A GUI-subsystem parent spawning a console child would otherwise
+            // flash a black console. Sidecar I/O is piped; it does not need one.
+            const CREATE_NO_WINDOW: u32 = 0x08000000;
+            cmd.creation_flags(CREATE_NEW_PROCESS_GROUP | CREATE_NO_WINDOW);
         }
 
         let mut child = cmd.spawn().map_err(|source| SidecarError::Spawn {

@@ -1,3 +1,8 @@
+#![cfg_attr(
+    all(windows, feature = "gui", not(debug_assertions)),
+    windows_subsystem = "windows"
+)]
+
 use std::net::SocketAddr;
 
 use theseus_core::default_sessions_dir;
