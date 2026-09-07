@@ -71,11 +71,13 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     assert!(css.contains("#0c0c0c"), "Codex-like near-black paper");
     assert!(css.contains("#161616"), "charcoal rail");
     assert!(css.contains("#1a2a40"), "muted-blue selected row");
-    assert!(!css.contains("Plugins"));
-    assert!(!css.contains("Pull requests"));
     let html = include_str!("../ui/index.html");
     assert!(html.contains("需要确认才能继续"));
     assert!(html.contains("id=\"run-state\""));
+    assert!(!html.contains("Plugins"));
+    assert!(!html.contains("Pull requests"));
+    assert!(!html.contains("Scheduled"));
+    assert!(!html.contains("Explore"));
 }
 
 #[test]

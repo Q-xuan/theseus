@@ -6,7 +6,7 @@
   - ui-tool GenericToolCard: name chip + one-line brief, body on disclose
   Codex Desktop product feel (density / dark only): charcoal rail, near-black
   main, muted-blue selected row, user bubble, allow/deny on the dock.
-  Not Codex features — no Plugins / PRs / Scheduled / Explore / settings.
+  Feel only: no extra nav, settings wall, or key box.
 */
 
 :root {
