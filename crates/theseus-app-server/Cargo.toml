@@ -1,0 +1,20 @@
+[package]
+name = "theseus-app-server"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "stdio JSON-RPC app-server: thread/start, turn/start, SessionEvent stream"
+
+[dependencies]
+theseus-core.workspace = true
+theseus-llm.workspace = true
+theseus-protocol.workspace = true
+theseus-tools.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true
+
+[[bin]]
+name = "theseus-app-server"
+path = "src/main.rs"

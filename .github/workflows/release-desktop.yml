@@ -106,8 +106,8 @@ jobs:
               shutil.rmtree(out)
           out.mkdir(parents=True)
 
-          conf = json.loads((root / "crates/pi-desktop/tauri.conf.json").read_text(encoding="utf-8"))
-          version = conf.get("version", "0.5.0")
+          conf = json.loads((root / "crates/theseus-desktop/tauri.conf.json").read_text(encoding="utf-8"))
+          version = conf.get("version", "0.6.0")
 
           rustc = subprocess.check_output(["rustc", "-vV"], text=True)
           triple = "unknown"
@@ -137,9 +137,9 @@ jobs:
                   shutil.copy2(src, dest)
                   copied.append(dest)
 
-          app = root / "target" / "release" / "bundle" / "macos" / "pi.app"
+          app = root / "target" / "release" / "bundle" / "macos" / "Theseus.app"
           if app.is_dir():
-              dest = out / f"pi_{version}_{arch}.app.zip"
+              dest = out / f"Theseus_{version}_{arch}.app.zip"
               zip_tree(app, dest)
               copied.append(dest)
 
@@ -152,7 +152,7 @@ jobs:
 
           dist = root / "dist"
           if dist.is_dir():
-              for folder in sorted(dist.glob("pi-portable-*")):
+              for folder in sorted(dist.glob("theseus-portable-*")):
                   if folder.is_dir():
                       dest = out / f"{folder.name}.zip"
                       zip_tree(folder, dest)
@@ -209,10 +209,10 @@ jobs:
 
             **macOS:** Gatekeeper may block the first open — right-click the app → Open.
             **Windows:** SmartScreen may warn about an unknown publisher — More info → Run anyway.
-            **API key:** `PI_LLM_API_KEY` is read only from the user/system environment. There is no key UI and no secrets in this repo.
+            **API key:** `THESEUS_LLM_API_KEY` is read only from the user/system environment (`PI_LLM_API_KEY` is a temporary fallback). There is no key UI and no secrets in this repo.
 
             未签名桌面安装包。无 Apple 公证、无 Authenticode、无自动更新。
             macOS 首次打开若被拦：右键 → 打开。Windows SmartScreen 可能提示未知发布者。
-            密钥只从用户/系统环境变量 `PI_LLM_API_KEY` 读取。
+            密钥只从用户/系统环境变量 `THESEUS_LLM_API_KEY` 读取。
 
-            Installer filenames follow `crates/pi-desktop/tauri.conf.json` `version` (currently 0.5.0), which may differ from this git tag.
+            Installer filenames follow `crates/theseus-desktop/tauri.conf.json` `version` (currently 0.6.0), which may differ from this git tag.

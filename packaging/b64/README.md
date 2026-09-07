@@ -1,4 +1,6 @@
-# pi-app v0.2 源码包（base64 分段）
+# 历史快照：pi-app v0.2 源码包（base64 分段）
+
+这是改名前的归档文件名，不是当前 Theseus 安装包。当前发货名见主 README / `theseus_*`（`Theseus.app` / `Theseus_0.6.0_*`）。
 
 对应提交：`0db2583110f2980ce2697d448069c81ec72e160e`
 

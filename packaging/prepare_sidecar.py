@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Stage pi-app-server as a Tauri externalBin (host triple suffix)."""
+"""Stage theseus-app-server as a Tauri externalBin (host triple suffix)."""
 
 from __future__ import annotations
 
@@ -11,12 +11,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-BIN_DIR = ROOT / "crates" / "pi-desktop" / "binaries"
-SIDECAR_STEM = "pi-app-server"
+BIN_DIR = ROOT / "crates" / "theseus-desktop" / "binaries"
+SIDECAR_STEM = "theseus-app-server"
 
 
 def host_triple() -> str:
-    env = os.environ.get("PI_TARGET_TRIPLE") or os.environ.get("CARGO_BUILD_TARGET")
+    env = (
+        os.environ.get("THESEUS_TARGET_TRIPLE")
+        or os.environ.get("PI_TARGET_TRIPLE")
+        or os.environ.get("CARGO_BUILD_TARGET")
+    )
     if env:
         return env.strip()
     rustc = shutil.which("rustc")
@@ -49,7 +53,7 @@ def sidecar_src(profile: str, triple: str) -> Path:
 
 
 def build_sidecar(profile: str) -> None:
-    args = ["cargo", "build", "-p", "pi-app-server", "-q"]
+    args = ["cargo", "build", "-p", "theseus-app-server", "-q"]
     if profile == "release":
         args.append("--release")
     subprocess.check_call(args, cwd=ROOT)
@@ -61,7 +65,7 @@ def stage(profile: str = "release", build: bool = True) -> Path:
         build_sidecar(profile)
     src = sidecar_src(profile, triple)
     if not src.is_file():
-        raise SystemExit(f"sidecar missing: {src} (build pi-app-server first)")
+        raise SystemExit(f"sidecar missing: {src} (build theseus-app-server first)")
     BIN_DIR.mkdir(parents=True, exist_ok=True)
     dest = BIN_DIR / staged_name(triple)
     shutil.copy2(src, dest)

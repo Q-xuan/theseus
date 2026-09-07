@@ -1,6 +1,0 @@
-{
-  "identifier": "default",
-  "description": "pi-desktop window (loopback UI only; sidecar stays on stdio)",
-  "windows": ["main"],
-  "permissions": ["core:default"]
-}
