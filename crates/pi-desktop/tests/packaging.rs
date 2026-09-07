@@ -73,7 +73,37 @@ fn packaging_scripts_exist() {
         "packaging/prepare_sidecar.py",
         "packaging/build-desktop.py",
         "packaging/README.md",
+        ".github/workflows/release-desktop.yml",
+        ".github/workflows/linux.yml",
     ] {
         assert!(root.join(rel).is_file(), "{rel}");
     }
+}
+
+#[test]
+fn release_desktop_workflow_is_native_unsigned() {
+    let root = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .parent()
+        .and_then(|p| p.parent())
+        .expect("workspace")
+        .to_path_buf();
+    let yml = std::fs::read_to_string(root.join(".github/workflows/release-desktop.yml"))
+        .expect("release-desktop.yml");
+    for needle in [
+        "macos-latest",
+        "windows-latest",
+        "packaging/build-desktop.py",
+        "workflow_dispatch",
+        "v*",
+        "softprops/action-gh-release",
+    ] {
+        assert!(yml.contains(needle), "missing {needle}");
+    }
+    assert!(!yml.contains("tauri-plugin-updater"));
+    assert!(!yml.contains("createUpdaterArtifacts: true"));
+    assert!(!yml.contains("notarize"), "must not notarize");
+    assert!(
+        !yml.to_ascii_lowercase().contains("appimage"),
+        "Linux AppImage is not a product"
+    );
 }

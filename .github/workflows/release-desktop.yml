@@ -1,0 +1,218 @@
+# Unsigned macOS / Windows installers for Theseus.
+# Trigger: push of an existing v* tag, or workflow_dispatch with that tag.
+# Does not create tags. No updater, notarization, or Authenticode.
+name: release-desktop
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: >-
+          Existing git tag to build and attach (e.g. v0.5.1).
+          Must already exist — this workflow will not create or push tags.
+        required: true
+        type: string
+
+concurrency:
+  group: release-desktop-${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  resolve-tag:
+    name: resolve-tag
+    runs-on: ubuntu-latest
+    outputs:
+      tag: ${{ steps.resolve.outputs.tag }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Require an existing v* tag
+        id: resolve
+        env:
+          REQUESTED: ${{ github.event_name == 'workflow_dispatch' && inputs.tag || github.ref_name }}
+        run: |
+          set -euo pipefail
+          TAG="${REQUESTED#refs/tags/}"
+          if [[ ! "$TAG" =~ ^v[A-Za-z0-9._-]+$ ]]; then
+            echo "Refusing to publish: tag must match v* (got: ${TAG})" >&2
+            exit 1
+          fi
+          if ! git fetch --no-tags origin "refs/tags/${TAG}:refs/tags/${TAG}"; then
+            echo "Tag ${TAG} does not exist on origin. Push the tag first; this workflow will not create it." >&2
+            exit 1
+          fi
+          echo "tag=${TAG}" >> "$GITHUB_OUTPUT"
+          echo "Publishing unsigned installers for existing tag ${TAG}"
+
+  build:
+    name: build (${{ matrix.os }})
+    needs: resolve-tag
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: refs/tags/${{ needs.resolve-tag.outputs.tag }}
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+        with:
+          shared-key: release-desktop
+
+      - name: Cache cargo-tauri
+        id: cache-tauri-cli
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.cargo/bin/cargo-tauri
+            ~/.cargo/bin/cargo-tauri.exe
+          key: cargo-tauri-${{ runner.os }}-${{ runner.arch }}-2.2
+
+      - name: Install Tauri CLI
+        shell: bash
+        run: |
+          if cargo tauri --version; then
+            echo "cargo-tauri already on PATH"
+          else
+            cargo install tauri-cli --version "^2.2"
+          fi
+
+      - name: Build unsigned desktop package
+        run: python3 packaging/build-desktop.py
+
+      - name: Collect release artifacts
+        shell: bash
+        run: |
+          python3 <<'PY'
+          import json, os, shutil, subprocess, zipfile
+          from pathlib import Path
+
+          root = Path(".").resolve()
+          out = root / "dist-release"
+          if out.exists():
+              shutil.rmtree(out)
+          out.mkdir(parents=True)
+
+          conf = json.loads((root / "crates/pi-desktop/tauri.conf.json").read_text(encoding="utf-8"))
+          version = conf.get("version", "0.5.0")
+
+          rustc = subprocess.check_output(["rustc", "-vV"], text=True)
+          triple = "unknown"
+          for line in rustc.splitlines():
+              if line.startswith("host:"):
+                  triple = line.split(":", 1)[1].strip()
+                  break
+          if "aarch64" in triple:
+              arch = "aarch64"
+          elif "x86_64" in triple:
+              arch = "x64"
+          else:
+              arch = triple.split("-")[0]
+
+          def zip_tree(src: Path, dest: Path) -> None:
+              with zipfile.ZipFile(dest, "w", zipfile.ZIP_DEFLATED) as zf:
+                  for path in src.rglob("*"):
+                      if path.is_file():
+                          zf.write(path, Path(src.name) / path.relative_to(src))
+
+          copied: list[Path] = []
+
+          dmg_dir = root / "target" / "release" / "bundle" / "dmg"
+          if dmg_dir.is_dir():
+              for src in sorted(dmg_dir.glob("*.dmg")):
+                  dest = out / src.name
+                  shutil.copy2(src, dest)
+                  copied.append(dest)
+
+          app = root / "target" / "release" / "bundle" / "macos" / "pi.app"
+          if app.is_dir():
+              dest = out / f"pi_{version}_{arch}.app.zip"
+              zip_tree(app, dest)
+              copied.append(dest)
+
+          nsis_dir = root / "target" / "release" / "bundle" / "nsis"
+          if nsis_dir.is_dir():
+              for src in sorted(nsis_dir.glob("*-setup.exe")):
+                  dest = out / src.name
+                  shutil.copy2(src, dest)
+                  copied.append(dest)
+
+          dist = root / "dist"
+          if dist.is_dir():
+              for folder in sorted(dist.glob("pi-portable-*")):
+                  if folder.is_dir():
+                      dest = out / f"{folder.name}.zip"
+                      zip_tree(folder, dest)
+                      copied.append(dest)
+
+          if not copied:
+              raise SystemExit("no release artifacts found under target/release/bundle/")
+
+          names = [p.name for p in copied]
+          runner = os.environ.get("RUNNER_OS", "")
+          if runner == "macOS" and not any(n.endswith(".dmg") or n.endswith(".app.zip") for n in names):
+              raise SystemExit(f"expected a macOS .dmg or .app.zip, got {names}")
+          if runner == "Windows" and not any(n.endswith("-setup.exe") for n in names):
+              raise SystemExit(f"expected a Windows NSIS *-setup.exe, got {names}")
+
+          for path in copied:
+              print(f"collected {path.name} ({path.stat().st_size} bytes)")
+          PY
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: theseus-${{ matrix.os }}
+          path: dist-release/*
+          if-no-files-found: error
+          retention-days: 14
+
+  publish:
+    name: publish-release
+    needs: [resolve-tag, build]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          pattern: theseus-*
+          path: dist-release
+          merge-multiple: true
+
+      - name: List artifacts
+        run: ls -la dist-release
+
+      - uses: softprops/action-gh-release@v2
+        with:
+          tag_name: ${{ needs.resolve-tag.outputs.tag }}
+          name: Theseus ${{ needs.resolve-tag.outputs.tag }}
+          draft: false
+          prerelease: false
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist-release/*
+          body: |
+            Unsigned Theseus desktop installers (macOS / Windows). No Apple notarization, no Authenticode, no auto-update.
+
+            **macOS:** Gatekeeper may block the first open — right-click the app → Open.
+            **Windows:** SmartScreen may warn about an unknown publisher — More info → Run anyway.
+            **API key:** `PI_LLM_API_KEY` is read only from the user/system environment. There is no key UI and no secrets in this repo.
+
+            未签名桌面安装包。无 Apple 公证、无 Authenticode、无自动更新。
+            macOS 首次打开若被拦：右键 → 打开。Windows SmartScreen 可能提示未知发布者。
+            密钥只从用户/系统环境变量 `PI_LLM_API_KEY` 读取。
+
+            Installer filenames follow `crates/pi-desktop/tauri.conf.json` `version` (currently 0.5.0), which may differ from this git tag.

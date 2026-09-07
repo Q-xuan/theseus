@@ -59,6 +59,21 @@ def run_check() -> None:
         raise SystemExit(f"tauri.conf.json missing {missing}")
     if '"updater"' in text:
         raise SystemExit("tauri.conf.json must not enable the updater plugin")
+    workflow = ROOT / ".github" / "workflows" / "release-desktop.yml"
+    if not workflow.is_file():
+        raise SystemExit("missing .github/workflows/release-desktop.yml")
+    wf = workflow.read_text()
+    for needle in (
+        "macos-latest",
+        "windows-latest",
+        "packaging/build-desktop.py",
+        "workflow_dispatch",
+        "v*",
+    ):
+        if needle not in wf:
+            raise SystemExit(f"release-desktop.yml missing {needle!r}")
+    if "createUpdaterArtifacts: true" in wf or "tauri-plugin-updater" in wf:
+        raise SystemExit("release-desktop.yml must not enable the updater")
     icons = ["32x32.png", "128x128.png", "128x128@2x.png", "icon.icns", "icon.ico"]
     for name in icons:
         path = DESKTOP / "icons" / name
@@ -69,6 +84,7 @@ def run_check() -> None:
     print(f"host_triple {sidecar.host_triple()}")
     print("linux CI: cargo test --workspace && python3 packaging/build-desktop.py --check")
     print("macOS/Windows package: python3 packaging/build-desktop.py")
+    print("GitHub Release (unsigned): push an existing v* tag, or workflow_dispatch with that tag")
     for line in expected_artifacts(sidecar.host_triple()):
         print(f"  artifact {line}")
 
