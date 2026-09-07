@@ -5,7 +5,10 @@
   "identifier": "dev.piapp.desktop",
   "build": {
     "frontendDist": "ui",
-    "beforeBuildCommand": "python3 ../../packaging/prepare_sidecar.py"
+    "beforeBuildCommand": {
+      "script": "python3 packaging/prepare_sidecar.py",
+      "cwd": "../.."
+    }
   },
   "app": {
     "withGlobalTauri": false,
