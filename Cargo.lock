@@ -2399,81 +2399,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "pi-app-server"
-version = "0.1.0"
-dependencies = [
- "pi-core",
- "pi-llm",
- "pi-protocol",
- "pi-tools",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "pi-core"
-version = "0.1.0"
-dependencies = [
- "pi-protocol",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "pi-desktop"
-version = "0.1.0"
-dependencies = [
- "axum",
- "pi-core",
- "serde_json",
- "tauri",
- "tauri-build",
- "thiserror 2.0.20",
- "tokio",
-]
-
-[[package]]
-name = "pi-llm"
-version = "0.1.0"
-dependencies = [
- "native-tls",
- "pi-protocol",
- "serde",
- "serde_json",
- "thiserror 2.0.20",
-]
-
-[[package]]
-name = "pi-protocol"
-version = "0.1.0"
-dependencies = [
- "schemars 0.8.22",
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "pi-tools"
-version = "0.1.0"
-dependencies = [
- "serde",
- "serde_json",
-]
-
-[[package]]
-name = "pi-web"
-version = "0.1.0"
-dependencies = [
- "axum",
- "pi-app-server",
- "pi-core",
- "pi-llm",
- "serde_json",
- "tokio",
-]
-
-[[package]]
 name = "pin-project-lite"
 version = "0.2.17"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -3671,6 +3596,81 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "5fed54709c5b3a53d09bb1c113ea4f5ceafd1e772ddcb0030a82e1d56c087b08"
 dependencies = [
  "new_debug_unreachable",
+]
+
+[[package]]
+name = "theseus-app-server"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+ "theseus-core",
+ "theseus-llm",
+ "theseus-protocol",
+ "theseus-tools",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "theseus-core"
+version = "0.1.0"
+dependencies = [
+ "serde_json",
+ "theseus-protocol",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "theseus-desktop"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde_json",
+ "tauri",
+ "tauri-build",
+ "theseus-core",
+ "thiserror 2.0.20",
+ "tokio",
+]
+
+[[package]]
+name = "theseus-llm"
+version = "0.1.0"
+dependencies = [
+ "native-tls",
+ "serde",
+ "serde_json",
+ "theseus-protocol",
+ "thiserror 2.0.20",
+]
+
+[[package]]
+name = "theseus-protocol"
+version = "0.1.0"
+dependencies = [
+ "schemars 0.8.22",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "theseus-tools"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "theseus-web"
+version = "0.1.0"
+dependencies = [
+ "axum",
+ "serde_json",
+ "theseus-app-server",
+ "theseus-core",
+ "theseus-llm",
+ "tokio",
 ]
 
 [[package]]

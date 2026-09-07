@@ -8,8 +8,9 @@ __pycache__/
 *.swp
 .env
 .env.*
+.theseus/
 .pi-app/
 .pi/
-crates/pi-desktop/binaries/pi-app-server
-crates/pi-desktop/binaries/pi-app-server-*
+crates/theseus-desktop/binaries/theseus-app-server
+crates/theseus-desktop/binaries/theseus-app-server-*
 

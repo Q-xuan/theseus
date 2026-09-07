@@ -1,0 +1,19 @@
+[package]
+name = "theseus-web"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Thin local Web shell over the in-process JSON-RPC app-server"
+
+[dependencies]
+axum = { version = "0.7", features = ["ws"] }
+theseus-app-server.workspace = true
+theseus-core.workspace = true
+theseus-llm.workspace = true
+serde_json.workspace = true
+tokio = { version = "1", features = ["macros", "rt-multi-thread", "net", "sync", "time"] }
+
+[[bin]]
+name = "theseus-web"
+path = "src/main.rs"

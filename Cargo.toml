@@ -1,13 +1,13 @@
 [workspace]
 resolver = "2"
 members = [
-    "crates/pi-protocol",
-    "crates/pi-core",
-    "crates/pi-llm",
-    "crates/pi-tools",
-    "crates/pi-app-server",
-    "crates/pi-web",
-    "crates/pi-desktop",
+    "crates/theseus-protocol",
+    "crates/theseus-core",
+    "crates/theseus-llm",
+    "crates/theseus-tools",
+    "crates/theseus-app-server",
+    "crates/theseus-web",
+    "crates/theseus-desktop",
 ]
 
 [workspace.package]
@@ -17,11 +17,11 @@ license = "MIT"
 rust-version = "1.83"
 
 [workspace.dependencies]
-pi-protocol = { path = "crates/pi-protocol" }
-pi-core = { path = "crates/pi-core" }
-pi-llm = { path = "crates/pi-llm" }
-pi-tools = { path = "crates/pi-tools" }
-pi-app-server = { path = "crates/pi-app-server" }
+theseus-protocol = { path = "crates/theseus-protocol" }
+theseus-core = { path = "crates/theseus-core" }
+theseus-llm = { path = "crates/theseus-llm" }
+theseus-tools = { path = "crates/theseus-tools" }
+theseus-app-server = { path = "crates/theseus-app-server" }
 schemars = { version = "0.8", features = ["derive"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"

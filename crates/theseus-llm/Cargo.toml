@@ -1,0 +1,14 @@
+[package]
+name = "theseus-llm"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version.workspace = true
+description = "Thin OpenAI-compatible streaming chat.completions seam"
+
+[dependencies]
+native-tls = "0.2"
+theseus-protocol.workspace = true
+serde.workspace = true
+serde_json.workspace = true
+thiserror.workspace = true

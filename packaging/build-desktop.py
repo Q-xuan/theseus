@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Build a local pi-desktop package on the machine that will run it.
+"""Build a local theseus-desktop package on the machine that will run it.
 
 macOS / Windows: `cargo tauri build --features gui` after staging the sidecar.
 Linux: `--check` (CI) or `--portable` (two-binary smoke folder). No .app / NSIS.
@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-DESKTOP = ROOT / "crates" / "pi-desktop"
+DESKTOP = ROOT / "crates" / "theseus-desktop"
 DIST = ROOT / "dist"
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
@@ -34,13 +34,13 @@ def host_os() -> str:
 def expected_artifacts(triple: str) -> list[str]:
     if "apple-darwin" in triple:
         return [
-            "target/release/bundle/macos/pi.app",
-            "target/release/bundle/dmg/pi_0.5.0_aarch64.dmg  (or x64)",
+            "target/release/bundle/macos/Theseus.app",
+            "target/release/bundle/dmg/Theseus_0.5.0_aarch64.dmg  (or x64)",
         ]
     if "windows" in triple:
         return [
-            "target/release/bundle/nsis/pi_0.5.0_x64-setup.exe  (or arm64)",
-            "dist/pi-portable-<triple>/   (if --portable)",
+            "target/release/bundle/nsis/Theseus_0.5.0_x64-setup.exe  (or arm64)",
+            "dist/theseus-portable-<triple>/   (if --portable)",
         ]
     return ["(this host does not emit .app / NSIS)"]
 
@@ -48,7 +48,7 @@ def expected_artifacts(triple: str) -> list[str]:
 def assert_before_build_finds_sidecar_script(conf_text: str) -> None:
     """Tauri 2.2 string hooks run from frontend_dir, not tauri.conf.json's dir.
 
-    Without a package.json that is crates/ (parent of pi-desktop). The v0.5.1
+    Without a package.json that is crates/ (parent of theseus-desktop). The v0.5.1
     command `python3 ../../packaging/prepare_sidecar.py` therefore resolved to
     the repo *parent*. Require an explicit cwd so the script is found from the
     repo root after tauri-cli set_current_dir(tauri_dir).
@@ -83,10 +83,14 @@ def run_check() -> None:
     required = [
         '"active": true',
         '"createUpdaterArtifacts": false',
-        "binaries/pi-app-server",
+        "binaries/theseus-app-server",
+        '"productName": "Theseus"',
+        '"identifier": "dev.theseus.desktop"',
         '"signingIdentity": "-"',
         '"certificateThumbprint": null',
     ]
+    if "pi.app" in text or "pi_0.5.0" in text or '"productName": "pi"' in text:
+        raise SystemExit("tauri.conf.json still uses pi installer branding")
     missing = [item for item in required if item not in text]
     if missing:
         raise SystemExit(f"tauri.conf.json missing {missing}")
@@ -125,33 +129,34 @@ def run_check() -> None:
 
 def assemble_portable(profile: str) -> Path:
     triple = sidecar.host_triple()
-    dest_dir = DIST / f"pi-portable-{triple}"
+    dest_dir = DIST / f"theseus-portable-{triple}"
     if dest_dir.exists():
         shutil.rmtree(dest_dir)
     dest_dir.mkdir(parents=True)
     suffix = sidecar.exe_suffix(triple)
     staged = sidecar.stage(profile=profile, build=True)
-    args = ["cargo", "build", "-p", "pi-desktop", "-q"]
+    args = ["cargo", "build", "-p", "theseus-desktop", "-q"]
     if profile == "release":
         args.append("--release")
     # Portable folder on Linux is the preview binary (no gui). On Mac/Win, gui.
     if host_os() != "linux":
         args.extend(["--features", "gui"])
     subprocess.check_call(args, cwd=ROOT)
-    desktop_src = ROOT / "target" / profile / f"pi-desktop{suffix}"
+    desktop_src = ROOT / "target" / profile / f"theseus-desktop{suffix}"
     server_src = sidecar.sidecar_src(profile, triple)
     if not desktop_src.is_file():
-        raise SystemExit(f"pi-desktop missing: {desktop_src}")
+        raise SystemExit(f"theseus-desktop missing: {desktop_src}")
     if not server_src.is_file():
         server_src = staged
     shutil.copy2(desktop_src, dest_dir / desktop_src.name)
-    shutil.copy2(server_src, dest_dir / f"pi-app-server{suffix}")
+    shutil.copy2(server_src, dest_dir / f"theseus-app-server{suffix}")
     (dest_dir / "README.txt").write_text(
-        "pi portable folder\n"
-        "Keep both binaries in this directory. Double-click pi-desktop "
-        "(the Tauri bundle uses the name pi).\n"
-        "PI_LLM_API_KEY is inherited from the user/system environment only.\n"
-        "No key box. Closing the window must kill pi-app-server.\n",
+        "Theseus portable folder\n"
+        "Keep both binaries in this directory. Double-click theseus-desktop "
+        "(the Tauri bundle uses the name Theseus).\n"
+        "THESEUS_LLM_API_KEY is inherited from the user/system environment only.\n"
+        "Legacy PI_* names still work as a temporary fallback.\n"
+        "No key box. Closing the window must kill theseus-app-server.\n",
         encoding="utf-8",
     )
     print(f"portable {dest_dir}")

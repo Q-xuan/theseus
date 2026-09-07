@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Generate the checked-in pi-desktop icon set (PNG / ICO / ICNS). No extra deps."""
+"""Generate the checked-in theseus-desktop icon set (PNG / ICO / ICNS). No extra deps."""
 
 from __future__ import annotations
 
@@ -8,7 +8,7 @@ import zlib
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-OUT = ROOT / "crates" / "pi-desktop" / "icons"
+OUT = ROOT / "crates" / "theseus-desktop" / "icons"
 
 BG = (0x1A, 0x1A, 0x18, 255)
 FG = (0xFA, 0xFA, 0xF8, 255)
@@ -39,12 +39,10 @@ def render(size: int) -> bytes:
     px = []
     for _ in range(size * size):
         px.extend(BG)
-    # Geometric π: top bar + two stems, padded like the desktop chrome.
+    # Geometric T for Theseus, padded like the desktop chrome.
     t = size / 32.0
-    _fill_rect(px, size, size, 7 * t, 8.2 * t, 25 * t, 11.4 * t)
-    _fill_rect(px, size, size, 22.6 * t, 8.2 * t, 25.2 * t, 14.2 * t)
-    _fill_rect(px, size, size, 10.2 * t, 10.6 * t, 13.4 * t, 23.6 * t)
-    _fill_rect(px, size, size, 18.4 * t, 10.6 * t, 21.6 * t, 23.6 * t)
+    _fill_rect(px, size, size, 7 * t, 8.2 * t, 25 * t, 11.6 * t)
+    _fill_rect(px, size, size, 14.2 * t, 10.6 * t, 17.8 * t, 23.8 * t)
     return bytes(px)
 
 
