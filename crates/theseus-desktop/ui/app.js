@@ -81,7 +81,12 @@
         }
       });
     if (navigator.clipboard && navigator.clipboard.writeText) {
-      return navigator.clipboard.writeText(text).catch(() => fallback());
+      return Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("clipboard-timeout")), 400);
+        }),
+      ]).catch(() => fallback());
     }
     return fallback();
   }
@@ -489,7 +494,12 @@
         }, 1200);
       })
       .catch(() => {
-        showBanner("复制 thread id 失败。");
+        copyThreadIdEl.textContent = "复制失败";
+        setTimeout(() => {
+          if (copyThreadIdEl.textContent === "复制失败") {
+            copyThreadIdEl.textContent = "复制 id";
+          }
+        }, 1200);
       });
   });
 
