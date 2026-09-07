@@ -1,6 +1,25 @@
 # v0.5 打包（本机可装包）
 
-π核冻结。这一刀只解决 **装得上、每天点得开**。不改 `pi-core` 合约，不加 MCP / compaction / 第二套前端 / 自动更新 / 商店签名。
+π核冻结。这一刀只解决 **装得上、每天点得开**。不改 `pi-core` 合约，不加 MCP / compaction / 第二套前端 / 自动更新 / 商店签名。Theseus 仍是独立实现（crate 名暂为 `pi-*`），不是 pi-mono fork。
+
+## 从 GitHub Releases 下载
+
+推送已存在的 `v*` 标签（或在 Actions 里对**已有**标签 `workflow_dispatch`）后，[`.github/workflows/release-desktop.yml`](../.github/workflows/release-desktop.yml) 在 **macos-latest** / **windows-latest** 本机 runner 上跑下面同一条 `python3 packaging/build-desktop.py`，把产物挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。**不会**自动创建或推送标签。
+
+| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.5.0） |
+| --- | --- |
+| macOS（`macos-latest` ≈ Apple Silicon） | `pi_0.5.0_aarch64.dmg`；另附 `pi_0.5.0_aarch64.app.zip`（解压得 `pi.app`） |
+| Windows（`windows-latest` ≈ x64） | `pi_0.5.0_x64-setup.exe`（当前用户 NSIS） |
+| 便携 zip | 默认 `build-desktop.py` **不**打便携目录；本机 `python3 packaging/build-desktop.py --portable` 才有。CI 若看到 `dist/pi-portable-*` 会顺带打成 zip |
+
+**未签名。** 无 Apple 公证 / Developer ID，无 Windows Authenticode，无 Tauri updater。
+
+- macOS Gatekeeper：第一次从 Finder 打开若被拦，**右键 → 打开**。
+- Windows SmartScreen：可能提示未知发布者 → **更多信息** → **仍要运行**。
+
+`PI_LLM_API_KEY` 仍然**只**从用户或系统环境变量进入 sidecar。没有密钥 UI，Release / 仓库 / workflow secret 里都不要放 key。安装后怎么写环境变量见下面「环境变量」。
+
+Linux 的 [`.github/workflows/linux.yml`](../.github/workflows/linux.yml) 只做 `--check` / `cargo test` / `cargo check`，保持不动。
 
 ## 本机构建（macOS / Windows）
 
@@ -46,7 +65,7 @@ python3 packaging/build-desktop.py --portable
 
 `.app` 里 sidecar 在 `Contents/MacOS/pi-app-server`（与 `pi` 同级）。NSIS / 便携则是 `pi-app-server.exe` 紧挨主程序。`locate` 先看 `PI_APP_SERVER_BIN`，再看可执行文件旁边，最后才是源码树的 `target/`。
 
-**不**做：Apple 公证、Developer ID 强制、Windows Authenticode、商店上架、自动更新产物（`createUpdaterArtifacts: false`，无 updater 插件）。macOS 本机是 ad-hoc（`signingIdentity: "-"`）。第一次从 Finder 打开若被拦，右键 → 打开。
+**不**做：Apple 公证、Developer ID 强制、Windows Authenticode、商店上架、自动更新产物（`createUpdaterArtifacts: false`，无 updater 插件）、Linux AppImage。macOS 本机是 ad-hoc（`signingIdentity: "-"`）。第一次从 Finder 打开若被拦，右键 → 打开。Windows SmartScreen 可能警告。CI Release 也是同一套未签名产物。
 
 ## 安装之后怎么用
 
@@ -102,9 +121,16 @@ export PI_LLM_API_KEY='...'
 
 无 key 时第 2 步是一条可读错误（「模型密钥没有传到 sidecar…」），jsonl 不写 turn。
 
+## 维护者：怎么发一版
+
+1. 审查 `main`，**由人**打并推送标签（例如 `git tag v0.5.1 && git push origin v0.5.1`）。工作流**不会**替你打标签。
+2. `push` 匹配 `v*` 的标签会启动 `release-desktop`，在 macOS / Windows 上构建并 `gh-release` 上传。
+3. 干跑 / 补传：Actions → **release-desktop** → Run workflow，**Tag** 填一个**已经存在**的 `v*` 标签。没有该标签会失败（故意的，避免误建 tag）。
+4. 不要把 `PI_LLM_API_KEY` 配进 repository secrets；构建不需要模型密钥。
+
 ## Linux CI（这台构建机）
 
-**不能**交叉打出可用的 `.app` / `.dmg` / NSIS（需要本机 WebKit / WebView2 / 签名工具链）。Linux 产品路径仍是 `--preview`，不挡打包脚本。
+**不能**交叉打出可用的 `.app` / `.dmg` / NSIS（需要本机 WebKit / WebView2 / 签名工具链）。Linux 产品路径仍是 `--preview`，不挡打包脚本。桌面安装包只走上面的 macOS / Windows Release 工作流。
 
 能绿、应绿：
 

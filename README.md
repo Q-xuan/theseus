@@ -12,7 +12,7 @@ crate / 二进制暂时仍叫 `pi-*`（`pi-core`、`pi-app-server`、`pi-desktop
 2. **shell stays out of core** — 桌面 / Web / `--preview` 只投影协议，不跑 derive、不写 log、不进工具环。
 3. **delete before add** — 先删后加。没有 MCP、compaction、Ask/Plan 新协议、插件体系。
 
-最小可运行的 Rust MVP：append-only session log + stdio JSON-RPC app-server。`pi-web` 是薄客户端壳（只投影协议）。模型调用走薄的 `pi-llm` seam（OpenAI 兼容流式 `chat.completions`）。同 turn 内可跑 `read` / `write` / `edit` / `bash` 工具环；危险三项可挂一层确认门闩。可装包仍在**你自己的 macOS / Windows** 上编：`python3 packaging/build-desktop.py`。这台 Linux 只做 `--preview` / `cargo test`。
+最小可运行的 Rust MVP：append-only session log + stdio JSON-RPC app-server。`pi-web` 是薄客户端壳（只投影协议）。模型调用走薄的 `pi-llm` seam（OpenAI 兼容流式 `chat.completions`）。同 turn 内可跑 `read` / `write` / `edit` / `bash` 工具环；危险三项可挂一层确认门闩。未签名的 macOS / Windows 安装包挂在 `v*` 标签的 [GitHub Releases](https://github.com/Q-xuan/theseus/releases)；也可以在自己的机器上 `python3 packaging/build-desktop.py`。Linux 只做 `--preview` / `cargo test`（[`.github/workflows/linux.yml`](.github/workflows/linux.yml)）。
 
 ## Crates
 
@@ -253,7 +253,7 @@ cargo run -p pi-web
 
 `pi-desktop` 只做两件事：管 `pi-app-server` 子进程的生死，把 **stdio JSON-RPC** 接到一层薄客户端。壳里**没有** derive / tool loop / SessionEvent 新 kind。
 
-`PI_LLM_API_KEY` 只从启动 App 的**用户/系统环境**（或父进程）继承给 sidecar。没有密钥框、没有 `--api-key`、不进 WebView、**没有自动更新**、**不强制商店签名**。
+`PI_LLM_API_KEY` 只从启动 App 的**用户/系统环境**（或父进程）继承给 sidecar。没有密钥框、没有 `--api-key`、不进 WebView、**没有自动更新**、**不强制商店签名**。仓库和 Release 产物里都不带密钥。
 
 ### 本机聊一轮（源码 / 已安装都一样）
 
@@ -282,6 +282,21 @@ cargo run -p pi-desktop --features gui
 
 开发脚手架（需 `cargo install tauri-cli --version "^2.2"`，无需 npm）：`cd crates/pi-desktop && cargo tauri dev --features gui`。
 
+### 从 GitHub Releases 下载（未签名）
+
+推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
+
+1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.5.0**，不一定等于 git 标签）：
+   - macOS：`pi_0.5.0_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `pi_0.5.0_aarch64.app.zip`，解出 `pi.app` 拖进「应用程序」
+   - Windows：`pi_0.5.0_x64-setup.exe`（当前用户 NSIS）
+3. **未签名**：
+   - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
+   - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
+4. 密钥仍然**只**从用户/系统环境变量 `PI_LLM_API_KEY` 读取。没有密钥设置页，也不要把 key 写进仓库或 `.env`。
+
+维护者：先审查再**由人**推 `v*` 标签（工作流不会创建标签）。已有标签可在 Actions 里对 `release-desktop` 做 `workflow_dispatch`，**必须**填一个已存在的 tag；不接受空 tag，以免误建 Release。
+
 ### v0.5 打包：本机安装器 / 便携包
 
 在 **macOS 或 Windows** 上（要打哪边就在哪边编；Linux 交叉打不出能用的 `.app` / NSIS）：
@@ -298,7 +313,7 @@ python3 packaging/build-desktop.py
 | Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/pi_0.5.0_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/pi-portable-<triple>/` |
 
-包内嵌 `pi-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。详细步骤见 [`packaging/README.md`](packaging/README.md)。
+包内嵌 `pi-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
 
 ### 环境变量（安装后双击也只认这些）
 
@@ -330,7 +345,7 @@ cargo run -p pi-desktop -- --preview
 python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交叉编译
 ```
 
-只绑 127.0.0.1。stdio↔WS 是过渡胶水，不是远程控制。Linux CI **不能**产出 macOS/Windows 安装包；能绿的是上面的 `check` / `test` / `--preview`。工作流：`.github/workflows/linux.yml`。
+只绑 127.0.0.1。stdio↔WS 是过渡胶水，不是远程控制。Linux CI **不能**产出 macOS/Windows 安装包；能绿的是上面的 `check` / `test` / `--preview`。工作流：[`.github/workflows/linux.yml`](.github/workflows/linux.yml)（保持 check / preview，不改）。桌面包只在 macOS / Windows runner 上打，见 [`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml)。
 
 ### 客户端皮对照（模块级，不是像素）
 
