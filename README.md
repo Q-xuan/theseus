@@ -2,9 +2,9 @@
 
 忒修斯之船：壳可以换，**append-only session event log** 才是那艘船。
 
-这是一份**独立实现**。想法对齐 session-log / app-server 这一侧：[openai/codex](https://github.com/openai/codex) 的 app-server（Thread / Turn / Item 只读外形）、[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 的 SessionEvent、以及 pi-mono 的 session log 取舍。**不是** pi-mono 的 fork。
+这是一份**独立的 Theseus 实现**。只借用 session-log / app-server 这一侧的想法：[openai/codex](https://github.com/openai/codex) 的 app-server（Thread / Turn / Item 只读外形）、[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 的 SessionEvent、以及 session log 取舍。**不是** pi 的翻版，也不自称 pi。
 
-crate / 二进制现为 `theseus-*`（`theseus-core`、`theseus-app-server`、`theseus-desktop`…）。旧的 `PI_*` 环境变量和 `~/.pi-app` 仍可暂时读到，但文档与发货名都以 Theseus 为准。
+crate / 二进制全部是 `theseus-*`。`PI_*` 与 `~/.pi-app` 仅作**已弃用**的短读兼容，新安装与文档只认 Theseus。
 
 ## 三条冻结原则
 
@@ -16,7 +16,7 @@ crate / 二进制现为 `theseus-*`（`theseus-core`、`theseus-app-server`、`t
 
 ## Crates
 
-职责如下。
+全部 `theseus-*`：
 
 | crate | 职责 |
 | --- | --- |
@@ -56,7 +56,7 @@ crate / 二进制现为 `theseus-*`（`theseus-core`、`theseus-app-server`、`t
 | 2 | `THESEUS_HOME` | `{THESEUS_HOME}/sessions/{thread_id}.jsonl` |
 | 3 | （默认） | `~/.theseus/sessions/{thread_id}.jsonl` |
 
-兼容（临时）：未设 `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` 时仍读 `PI_SESSIONS_DIR` / `PI_HOME`。默认目录若 `~/.theseus/sessions` 不存在而 `~/.pi-app/sessions` 存在，则沿用后者。新安装走 `~/.theseus/sessions`。
+**已弃用**的短读兼容：未设 `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` 时仍读 `PI_SESSIONS_DIR` / `PI_HOME`。默认目录若 `~/.theseus/sessions` 不存在而 `~/.pi-app/sessions` 存在，则沿用后者。新安装只走 `~/.theseus/sessions`。
 
 `thread/start` 立刻写出 `thread/meta`；之后每次成功 `append` 同步追加一行并 `fsync`。落盘失败则该事件**不进内存**，进行中的 turn 失败。`Thread.path` 为 jsonl 的绝对路径，`ephemeral` 为 `false`。
 
@@ -321,10 +321,10 @@ python3 packaging/build-desktop.py
 
 | 变量 | 作用 |
 | --- | --- |
-| `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。临时仍认 `PI_LLM_API_KEY` |
-| `THESEUS_TOOL_APPROVAL` | 默认 `approve`。临时仍认 `PI_TOOL_APPROVAL` |
-| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`。临时仍认 `PI_*` 与 `~/.pi-app` |
-| `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。临时仍认 `PI_APP_SERVER_BIN` |
+| `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
+| `THESEUS_TOOL_APPROVAL` | 默认 `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
+| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
+| `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
 **Windows**：设置 → 系统 → 关于 → 高级系统设置 → 环境变量 → **用户变量** 新建 `THESEUS_LLM_API_KEY` → 完全退出 Theseus 再开（必要时注销，让 Explorer 重新继承）。
 
@@ -371,7 +371,7 @@ python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交�
 - 对外 `Thread.createdAt` 用 Unix **秒**（Codex）；内部 `SessionEvent.time` 用 Unix **毫秒**（harness）。
 - `turn.id` 为 `turn_{threadId}_{n}`；事件里的 `turn` / `step` 是从 1 起的整数。
 - 不实现 `thread/fork` RPC、`turn/steer`、工具托管或审批产品（无策略页、无 per-tool ACL）。门闩只有进程级 `auto`/`approve` + 一张确认卡。`Session::fork` 只在 `theseus-core`。
-- 不 vet 完整 Codex / harness / pi-mono 树，只对齐上述外形与九种事件。
+- 不 vet 完整 Codex / harness 树，只对齐上述外形与九种事件。不是 pi 的翻版。
 - `TurnEndReason` 仍用 `aborted`（未改名为冻结侧的 `rejected`）。seam 失败用 `error`；触顶用 `aborted`。
 - 默认 LLM base 为 `https://ai.aruyx.com/`；单 provider，无注册表。HTTPS 走 `native-tls`（需系统 OpenSSL / `libssl-dev`）。
 - `bash` 先本机、无沙箱隔离；超时是硬保证。工具 cwd 钉 thread 工作区（canonicalize 后的根）。`read` / `write` / `edit` 路径经同一校验：解析后必须落在该根下，越界只 `tool/result.isError`，不炸 turn。

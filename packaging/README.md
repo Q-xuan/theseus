@@ -1,6 +1,6 @@
 # v0.5 打包（本机可装包）
 
-Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 `theseus-core` 合约，不加 MCP / compaction / 第二套前端 / 自动更新 / 商店签名。Theseus 是独立实现（crate 现为 `theseus-*`），不是 pi-mono fork。
+Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 `theseus-core` 合约，不加 MCP / compaction / 第二套前端 / 自动更新 / 商店签名。Theseus 是独立实现（crate 全部 `theseus-*`），只借用 session-log / app-server 想法，不是 pi 的翻版。
 
 ## 从 GitHub Releases 下载
 
@@ -77,11 +77,11 @@ python3 packaging/build-desktop.py --portable
 
 | 变量 | 谁读 | 默认 |
 | --- | --- | --- |
-| `THESEUS_LLM_API_KEY` | sidecar（`theseus-llm`） | 空 → `turn/start` RPC 错，不写 turn。临时仍认 `PI_LLM_API_KEY` |
-| `THESEUS_LLM_BASE_URL` / `THESEUS_LLM_MODEL` | sidecar | 见主 README。临时仍认 `PI_LLM_*` |
-| `THESEUS_TOOL_APPROVAL` | sidecar | `approve`。临时仍认 `PI_TOOL_APPROVAL` |
-| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | sidecar | `~/.theseus/sessions`。临时仍认 `PI_*` 与 `~/.pi-app` |
-| `THESEUS_APP_SERVER_BIN` | 壳（调试用） | 包内嵌的 sidecar。临时仍认 `PI_APP_SERVER_BIN` |
+| `THESEUS_LLM_API_KEY` | sidecar（`theseus-llm`） | 空 → `turn/start` RPC 错，不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
+| `THESEUS_LLM_BASE_URL` / `THESEUS_LLM_MODEL` | sidecar | 见主 README。`PI_LLM_*` **已弃用**，仅短读兼容 |
+| `THESEUS_TOOL_APPROVAL` | sidecar | `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
+| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | sidecar | `~/.theseus/sessions`。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
+| `THESEUS_APP_SERVER_BIN` | 壳（调试用） | 包内嵌的 sidecar。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
 不要把 key 写进仓库、命令行、WebView、plist 里的明文配置页（本项目没有设置页）。
 
