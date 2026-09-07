@@ -8,6 +8,7 @@ Linux: `--check` (CI) or `--portable` (two-binary smoke folder). No .app / NSIS.
 from __future__ import annotations
 
 import argparse
+import json
 import os
 import shutil
 import subprocess
@@ -44,6 +45,38 @@ def expected_artifacts(triple: str) -> list[str]:
     return ["(this host does not emit .app / NSIS)"]
 
 
+def assert_before_build_finds_sidecar_script(conf_text: str) -> None:
+    """Tauri 2.2 string hooks run from frontend_dir, not tauri.conf.json's dir.
+
+    Without a package.json that is crates/ (parent of pi-desktop). The v0.5.1
+    command `python3 ../../packaging/prepare_sidecar.py` therefore resolved to
+    the repo *parent*. Require an explicit cwd so the script is found from the
+    repo root after tauri-cli set_current_dir(tauri_dir).
+    """
+    data = json.loads(conf_text)
+    before = data.get("build", {}).get("beforeBuildCommand")
+    if not isinstance(before, dict):
+        raise SystemExit(
+            "beforeBuildCommand must be {script, cwd}. A string hook uses "
+            "Tauri frontend_dir (crates/ here), so ../../packaging escapes "
+            "the workspace — see tag v0.5.1 release-desktop failure."
+        )
+    script = before.get("script") or ""
+    if "prepare_sidecar.py" not in script:
+        raise SystemExit("beforeBuildCommand.script must invoke prepare_sidecar.py")
+    hook_cwd = Path(before.get("cwd") or ".")
+    resolved_cwd = (DESKTOP / hook_cwd).resolve()
+    token = next((part for part in script.split() if part.endswith("prepare_sidecar.py")), None)
+    if token is None:
+        raise SystemExit("beforeBuildCommand.script must pass prepare_sidecar.py")
+    script_path = Path(token) if Path(token).is_absolute() else (resolved_cwd / token)
+    if not script_path.is_file():
+        raise SystemExit(
+            f"beforeBuildCommand cannot find {script_path} "
+            f"(cwd={hook_cwd} from {DESKTOP} -> {resolved_cwd})"
+        )
+
+
 def run_check() -> None:
     conf = DESKTOP / "tauri.conf.json"
     text = conf.read_text()
@@ -59,6 +92,7 @@ def run_check() -> None:
         raise SystemExit(f"tauri.conf.json missing {missing}")
     if '"updater"' in text:
         raise SystemExit("tauri.conf.json must not enable the updater plugin")
+    assert_before_build_finds_sidecar_script(text)
     workflow = ROOT / ".github" / "workflows" / "release-desktop.yml"
     if not workflow.is_file():
         raise SystemExit("missing .github/workflows/release-desktop.yml")

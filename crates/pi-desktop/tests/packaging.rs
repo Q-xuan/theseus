@@ -32,8 +32,25 @@ fn tauri_bundle_is_local_unsigned_with_sidecar() {
         "Linux appimage is not a v0.5 product"
     );
     assert!(conf.get("plugins").is_none());
-    let before = conf["build"]["beforeBuildCommand"].as_str().unwrap_or("");
-    assert!(before.contains("prepare_sidecar.py"), "{before}");
+    let before = &conf["build"]["beforeBuildCommand"];
+    // Tauri 2.2 runs a string hook from frontend_dir. This repo has no
+    // package.json, so that is tauri_dir.parent() == crates/. A path of
+    // ../../packaging/prepare_sidecar.py therefore escapes the workspace
+    // (v0.5.1 macOS/Windows CI). Pin cwd to the repo root instead; tauri-cli
+    // set_current_dir(tauri_dir) before Command::current_dir(cwd).
+    let script = before
+        .get("script")
+        .and_then(|s| s.as_str())
+        .unwrap_or("");
+    assert!(
+        script.contains("prepare_sidecar.py"),
+        "beforeBuildCommand.script must invoke prepare_sidecar.py: {before}"
+    );
+    assert_eq!(
+        before.get("cwd").and_then(|c| c.as_str()),
+        Some("../.."),
+        "beforeBuildCommand.cwd must be the repo root from crates/pi-desktop: {before}"
+    );
 }
 
 #[test]
