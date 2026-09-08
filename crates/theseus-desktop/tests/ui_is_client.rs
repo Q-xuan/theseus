@@ -56,7 +56,7 @@ fn desktop_ui_stays_a_client() {
     assert!(js.contains("/model"), "shell model endpoint");
     assert!(js.contains("turn-anchor"), "clickable turn marks");
     assert!(js.contains("scrollToTurn"));
-    assert!(js.contains("data-turn"));
+    assert!(js.contains("dataset.turn"), "turn marks carry a turn index");
     assert!(js.contains("item/agentMessage/delta"));
     assert!(js.contains("thread/start"));
     assert!(js.contains("thread/resume"));
