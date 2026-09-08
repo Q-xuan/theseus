@@ -19,16 +19,11 @@
       <div class="workspace">
         <header class="thread-bar">
           <button type="button" id="toggle-rail" class="ghost" aria-label="最近线程">最近</button>
-          <div id="title" class="title">未打开对话</div>
-          <div id="thread-id-box" class="thread-id hidden">
-            <span id="thread-id" class="thread-id-value" title=""></span>
-            <button type="button" id="copy-thread-id" class="ghost thread-id-copy" aria-label="复制 thread id" disabled>
-              复制 id
-            </button>
+          <div class="title-cluster">
+            <div id="title" class="title">未打开对话</div>
+            <button type="button" id="copy-thread-id" class="title-copy hidden" aria-label="复制 thread id" disabled></button>
           </div>
-          <div id="meta" class="meta">未连接</div>
-          <div id="workspace-chip" class="workspace-chip" title="">工作区</div>
-          <div id="run-state" class="run-state hidden">进行中</div>
+          <div id="workspace-chip" class="workspace-chip hidden" title=""></div>
           <button type="button" id="open-prefs" class="ghost gear" aria-label="打开设置" title="设置">⚙</button>
         </header>
         <div id="prefs-mask" class="prefs-mask hidden">
@@ -70,12 +65,11 @@
         <div class="thread-col">
           <nav id="timeline" class="timeline" aria-label="回合时间线"></nav>
           <main class="thread" id="thread" data-conversation-scroll>
-            <p id="empty" class="empty">
-              点左侧「新对话」开一轮，或从最近列表继续。<br />
-              危险工具会在输入条上出现一张确认卡。
-            </p>
             <ol id="log" class="log" aria-live="polite"></ol>
           </main>
+          <div id="empty" class="empty">
+            <button type="button" id="empty-cta" class="empty-cta" disabled>新对话</button>
+          </div>
         </div>
         <div id="dock" class="dock">
           <aside id="approval" class="gate hidden" role="dialog" aria-label="工具确认">
@@ -112,7 +106,9 @@
                   <button type="button" class="model-choice" data-model="gpt-4o">gpt-4o</button>
                 </div>
               </div>
-              <button type="button" id="stop" class="stop hidden">停止</button>
+              <button type="button" id="stop" class="stop hidden" aria-label="停止">
+                <span class="stop-sq" aria-hidden="true"></span>
+              </button>
               <button type="submit" id="send" disabled>发送</button>
             </div>
           </form>

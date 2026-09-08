@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::locate::{locate_app_server, LocateError};
 
-const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.7.0"}}}"#;
+const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.7.1"}}}"#;
 const SHUTDOWN_LINE: &str = r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":{}}"#;
 
 #[derive(Debug, thiserror::Error)]

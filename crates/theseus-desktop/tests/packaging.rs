@@ -8,7 +8,7 @@ fn tauri_bundle_is_local_unsigned_with_sidecar() {
         serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
     assert_eq!(conf["productName"], "Theseus");
     assert_eq!(conf["identifier"], "dev.theseus.desktop");
-    assert_eq!(conf["version"], "0.7.0");
+    assert_eq!(conf["version"], "0.7.1");
     assert_eq!(conf["bundle"]["active"], true);
     assert_eq!(conf["bundle"]["createUpdaterArtifacts"], false);
     let bins = conf["bundle"]["externalBin"]

@@ -41,13 +41,17 @@ fn desktop_ui_stays_a_client() {
         "composer dock for the one gate"
     );
     assert!(html.contains("新对话"));
-    assert!(html.contains("id=\"thread-id\""), "header shows protocol thread id");
-    assert!(html.contains("id=\"copy-thread-id\""), "copy thread id control");
-    assert!(html.contains("复制 id"));
+    assert!(html.contains("id=\"copy-thread-id\""), "quiet optional copy affordance");
+    assert!(!html.contains("复制 id"), "thread id is not a primary path");
+    assert!(!html.contains("id=\"thread-id-box\""));
+    assert!(!html.contains("id=\"meta\""), "one workspace chip only");
     assert!(html.contains("id=\"prefs\""), "one closable settings card");
     assert!(html.contains("id=\"open-prefs\""), "gear / settings entry");
     assert!(html.contains("id=\"stop\""), "composer Stop");
     assert!(html.contains("id=\"workspace-chip\""), "current workspace");
+    assert!(html.contains("id=\"empty-cta\""), "centered empty CTA");
+    assert!(!html.contains("危险工具"), "defer gate tip off the empty state");
+    assert!(!html.contains(">停止<"), "Stop is a circular icon, not a text button");
     assert!(!html.contains("type=\"search\""));
     assert!(!html.contains("short-link"));
     assert!(!html.contains("oauth"));
@@ -78,6 +82,17 @@ fn desktop_ui_stays_a_client() {
     assert!(js.contains("tool-head"));
     assert!(js.contains("clipboard.writeText") || js.contains("copyText"));
     assert!(js.contains("showThreadId"));
+    assert!(js.contains("shortLabel"), "titles and sidebar do not dump long prompts");
+    assert!(js.contains("TITLE_MAX = 28"), "header title is first-sentence + hard cap");
+    assert!(js.contains("firstSentence"));
+    assert!(js.contains("[。！？!?]"), "title cuts at the first sentence");
+    assert!(
+        js.contains("setTitle(text, \"新对话\")"),
+        "after send / while streaming, title truncates the user prompt"
+    );
+    assert!(!js.contains("titleEl.textContent = text"));
+    assert!(!js.contains("class=\"who\""), "no 你/助手 role tags");
+    assert!(!js.contains("t.preview || t.id"), "sidebar is preview only");
     assert!(
         !js.contains("session/event"),
         "UI must project Item/delta, not raw session log"
@@ -101,17 +116,20 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     assert!(css.contains("#1a2a40"), "muted-blue selected row");
     let html = include_str!("../ui/index.html");
     assert!(html.contains("需要确认才能继续"));
-    assert!(html.contains("id=\"run-state\""));
-    assert!(html.contains("id=\"thread-id-box\""));
+    assert!(!html.contains("id=\"run-state\""), "busy lives on spinner + Stop");
     assert!(css.contains("composer-strip"), "model strip on composer bottom");
     assert!(css.contains(".timeline"), "turn ticks");
+    assert!(css.contains(".stop-sq"), "circular Stop with square inside");
+    assert!(css.contains("border-radius: 50%"), "circular Stop");
     assert!(!html.contains("Plugins"));
     assert!(!html.contains("Pull requests"));
     assert!(!html.contains("Scheduled"));
     assert!(!html.contains("Explore"));
+    assert!(!html.contains("Pinned"));
     assert!(html.contains("id=\"prefs\""), "one card, not a settings maze");
     assert!(!html.contains("OAuth"));
     assert!(css.contains(".prefs"), "thin prefs card");
+    assert!(css.contains("prefs-open"), "settings card does not fight empty state");
 }
 
 #[test]

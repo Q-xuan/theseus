@@ -63,7 +63,7 @@ body {
   display: flex;
   flex-direction: column;
   min-width: 0;
-  padding: 4px 8px 8px;
+  padding: 4px 6px 6px;
 }
 
 .rail-brand {
@@ -118,7 +118,7 @@ body {
 
 .session {
   display: grid;
-  grid-template-columns: 8px 1fr auto;
+  grid-template-columns: 8px 1fr;
   align-items: center;
   gap: 6px;
   width: 100%;
@@ -127,11 +127,11 @@ body {
   background: transparent;
   color: inherit;
   font: inherit;
-  border-radius: 6px;
-  padding: 4px 6px;
+  border-radius: 5px;
+  padding: 2px 6px;
   cursor: pointer;
   margin-bottom: 0;
-  min-height: 24px;
+  min-height: 22px;
 }
 
 .session:hover {
@@ -160,12 +160,6 @@ body {
   text-overflow: ellipsis;
 }
 
-.session-when {
-  color: var(--muted);
-  font-size: 11px;
-  white-space: nowrap;
-}
-
 .workspace {
   flex: 1;
   min-width: 0;
@@ -187,6 +181,16 @@ body {
   display: none;
 }
 
+.title-cluster {
+  flex: 1 1 auto;
+  min-width: 0;
+  max-width: 18em;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow: hidden;
+}
+
 .title {
   flex: 1 1 auto;
   min-width: 0;
@@ -196,46 +200,38 @@ body {
   white-space: nowrap;
 }
 
-.thread-id {
-  display: flex;
-  align-items: center;
-  gap: 4px;
-  flex: 0 1 auto;
-  min-width: 0;
-}
-
-.thread-id-value {
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.02em;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
-  max-width: 16em;
-}
-
-.thread-id-copy {
+.title-copy {
   flex: none;
-  padding: 2px 6px;
-  font-size: 11px;
-  line-height: 1.2;
+  width: 18px;
+  height: 18px;
+  padding: 0;
+  border: 0;
   border-radius: 4px;
+  background: transparent;
+  color: var(--muted);
+  opacity: 0;
+  cursor: pointer;
 }
 
-.meta {
-  margin-left: auto;
-  color: var(--muted);
-  font-size: 12px;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+.title-copy::before {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 8px;
+  margin: 4px auto 0;
+  border: 1px solid currentColor;
+  border-radius: 1px;
+  box-shadow: 2px -2px 0 -1px var(--paper), 2px -2px 0 0 currentColor;
 }
 
-.run-state {
-  flex: none;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+.title-cluster:hover .title-copy:not(.hidden) {
+  opacity: 0.55;
+}
+
+.title-copy:hover,
+.title-copy:focus-visible {
+  opacity: 1;
+  background: var(--hover);
 }
 
 .banner {
@@ -258,15 +254,19 @@ body {
 .empty.hidden,
 .gate.hidden,
 .sessions-empty.hidden,
-.run-state.hidden,
 .composer.hidden,
 .tool-body.hidden,
-.thread-id.hidden,
 .model-pop.hidden,
 .prefs-mask.hidden,
+.workspace-chip.hidden,
+.title-copy.hidden,
 .stop.hidden,
 #send.hidden {
   display: none;
+}
+
+body.prefs-open .empty {
+  visibility: hidden;
 }
 
 .thread-col {
@@ -301,7 +301,7 @@ body {
 .timeline .tick::after {
   content: "";
   display: block;
-  width: 8px;
+  width: 6px;
   height: 2px;
   background: #4a4a4a;
   border-radius: 1px;
@@ -325,9 +325,36 @@ body {
 }
 
 .empty {
-  color: var(--muted);
-  margin: 24px 0;
-  line-height: 1.5;
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0;
+  pointer-events: none;
+}
+
+.empty-cta {
+  pointer-events: auto;
+  appearance: none;
+  height: 32px;
+  padding: 0 16px;
+  border: 1px solid var(--line);
+  border-radius: 8px;
+  background: var(--ghost-bg);
+  color: var(--text);
+  font: 13px/1.2 inherit;
+  font-weight: 550;
+  cursor: pointer;
+}
+
+.empty-cta:hover:not(:disabled) {
+  background: var(--hover);
+}
+
+.empty-cta:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 .log {
@@ -337,40 +364,28 @@ body {
   max-width: 720px;
 }
 
-.turn-mark,
-.turn-anchor {
-  margin: 8px 0 6px;
-  color: var(--muted);
-  font-size: 11px;
-  letter-spacing: 0.04em;
+.turn-mark {
+  list-style: none;
+  height: 0;
+  margin: 0;
+  padding: 0;
+  overflow: hidden;
 }
 
 .turn-anchor {
   appearance: none;
   display: block;
-  width: 100%;
+  width: 0;
+  height: 0;
   border: 0;
-  background: transparent;
-  color: inherit;
-  font: inherit;
-  text-align: left;
   padding: 0;
-  cursor: pointer;
-}
-
-.turn-anchor:hover {
-  color: var(--text);
+  margin: 0;
+  background: transparent;
+  overflow: hidden;
 }
 
 .item {
-  margin: 0 0 6px;
-}
-
-.item .who {
-  display: block;
-  font-size: 11px;
-  color: var(--muted);
-  margin-bottom: 2px;
+  margin: 0 0 10px;
 }
 
 .item.user {
@@ -391,8 +406,9 @@ body {
 
 .item.agent .bubble {
   white-space: pre-wrap;
-  line-height: 1.4;
+  line-height: 1.55;
   font-size: 13px;
+  margin: 2px 0 14px;
 }
 
 .tool-card {
@@ -495,6 +511,10 @@ body {
 .workspace-chip {
   flex: none;
   max-width: 14em;
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--line);
+  background: var(--ghost-bg);
   color: var(--muted);
   font-size: 11px;
   overflow: hidden;
@@ -511,12 +531,12 @@ body {
 .prefs-mask {
   position: fixed;
   inset: 0;
-  z-index: 8;
+  z-index: 20;
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   justify-content: center;
-  padding: 48px 16px 16px;
-  background: rgb(0 0 0 / 45%);
+  padding: 24px 16px;
+  background: rgb(0 0 0 / 62%);
 }
 
 .prefs {
@@ -617,8 +637,7 @@ body {
 
 .ghost,
 #approval-approve,
-#send,
-#stop {
+#send {
   appearance: none;
   border-radius: 6px;
   padding: 5px 10px;
@@ -633,16 +652,10 @@ body {
 }
 
 #approval-approve,
-#send,
-#stop {
+#send {
   border: 0;
   background: var(--btn);
   color: var(--btn-text);
-}
-
-#stop {
-  background: var(--err);
-  color: var(--err-text);
 }
 
 .new-chat:disabled,
@@ -799,6 +812,33 @@ body {
 .composer-strip #send,
 .composer-strip #stop {
   margin-left: auto;
+}
+
+.stop {
+  appearance: none;
+  flex: none;
+  width: 28px;
+  height: 28px;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #ececec;
+  color: #111;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.stop:hover:not(:disabled) {
+  background: #fff;
+}
+
+.stop-sq {
+  width: 9px;
+  height: 9px;
+  border-radius: 1.5px;
+  background: #111;
 }
 
 .composer textarea:focus {
