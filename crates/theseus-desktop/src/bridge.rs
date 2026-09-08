@@ -10,7 +10,7 @@ use std::sync::Arc;
 
 use axum::extract::ws::{Message, WebSocket};
 use axum::extract::{State, WebSocketUpgrade};
-use axum::http::header;
+use axum::http::{header, StatusCode};
 use axum::response::{Html, IntoResponse};
 use axum::routing::get;
 use axum::Router;
@@ -59,6 +59,7 @@ fn router(state: Arc<BridgeState>) -> Router {
         .route("/app.js", get(app_js))
         .route("/app.css", get(app_css))
         .route("/health", get(health))
+        .route("/model", get(get_model).put(put_model))
         .route("/ws", get(ws_upgrade))
         .with_state(state)
 }
@@ -83,6 +84,42 @@ async fn health() -> impl IntoResponse {
         [(header::CONTENT_TYPE, "application/json")],
         r#"{"ok":true,"service":"theseus-desktop","bridge":"stdio-sidecar"}"#,
     )
+}
+
+fn model_json(model: &str) -> ([(header::HeaderName, &'static str); 1], String) {
+    (
+        [(header::CONTENT_TYPE, "application/json")],
+        serde_json::json!({ "model": model }).to_string(),
+    )
+}
+
+async fn get_model() -> impl IntoResponse {
+    model_json(&crate::resolve_user_model())
+}
+
+async fn put_model(body: String) -> impl IntoResponse {
+    let parsed: serde_json::Value = match serde_json::from_str(&body) {
+        Ok(v) => v,
+        Err(_) => {
+            return (
+                StatusCode::BAD_REQUEST,
+                model_json(&crate::resolve_user_model()),
+            )
+                .into_response();
+        }
+    };
+    let raw = parsed
+        .get("model")
+        .and_then(|v| v.as_str())
+        .unwrap_or("");
+    match crate::persist_user_model(raw) {
+        Ok(model) => (StatusCode::OK, model_json(&model)).into_response(),
+        Err(_) => (
+            StatusCode::BAD_REQUEST,
+            model_json(&crate::resolve_user_model()),
+        )
+            .into_response(),
+    }
 }
 
 async fn ws_upgrade(

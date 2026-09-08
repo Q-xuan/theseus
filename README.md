@@ -274,8 +274,8 @@ cargo run -p theseus-desktop --features gui
 
 在打开的窗口里验收：
 
-1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是暗蓝底。顶栏显示当前 **thread id**，可点 **复制 id**（只复制协议里的 id，没有分享短链）。
-2. **流式**：发 `只回复：ping`。主列出现「回合」标记、你的气泡、流式助手。
+1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是暗蓝底。顶栏显示当前 **thread id**，可点 **复制 id**（只复制协议里的 id，没有分享短链）。输入条底栏显示当前模型名（`THESEUS_LLM_MODEL` / `~/.theseus/model`），可改字符串，没有密钥框、没有 OAuth。
+2. **流式**：发 `只回复：ping`。主列出现「回合」标记、你的气泡、流式助手。左侧时间线短刻度可点，跳到对应回合（只是现有 `turn/started` / `thread.turns` 的投影）。
 3. **拒绝一次**：再发「用 write 在工作区写 `scratch.txt`，内容 `no`」。输入条被一张门闩卡顶掉（琥珀条 + 工具名 + 摘要）。点 **拒绝**。应出现工具失败行，文件不应存在。
 4. **批准一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」。同一张卡点 **批准**。工作区里有 `hello.txt`。
 5. **resume**：左栏预览应更新；点另一行再点回来，历史还在（`thread/resume`）。
@@ -289,9 +289,9 @@ cargo run -p theseus-desktop --features gui
 推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.1**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.6.1_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.1_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.6.1_x64-setup.exe`（当前用户 NSIS）
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.2**，不一定等于 git 标签）：
+   - macOS：`Theseus_0.6.2_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.2_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
+   - Windows：`Theseus_0.6.2_x64-setup.exe`（当前用户 NSIS）
 3. **未签名**：
    - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
    - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
@@ -311,8 +311,8 @@ python3 packaging/build-desktop.py
 | 产物 | 路径（相对仓库根） |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.1_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.1_*-setup.exe` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.2_*.dmg` |
+| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.2_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
 
 包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
@@ -322,6 +322,7 @@ python3 packaging/build-desktop.py
 | 变量 | 作用 |
 | --- | --- |
 | `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
+| `THESEUS_LLM_MODEL` | sidecar 默认模型；桌面输入条底栏可读可写。`PI_LLM_MODEL` **已弃用**，仅短读兼容。UI 改名会写入 `~/.theseus/model`（不是密钥），新对话经已有的 `thread/start.model` 带上 |
 | `THESEUS_TOOL_APPROVAL` | 默认 `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
 | `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
 | `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
@@ -357,7 +358,8 @@ python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交�
 | --- | --- |
 | 左栏 240 / 12px 边距 / 38×12「新对话」 | dsh `ui-sidebar` `SidebarRoot.module.css` |
 | 「最近」一行预览 + 相对时间 + 选中底 + 等待琥珀点 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
-| 主列回合标记 / 用户气泡 / 助手正文 | dsh `ui-conversation` ChatView；Codex thread |
+| 主列回合标记 + 左侧时间线刻度 / 用户气泡 / 助手正文 | dsh `ui-conversation` ChatView；Codex thread |
+| 输入条底栏模型名（环境变量 / `~/.theseus/model`） | Codex composer model strip（只借手感，不是 Codex 功能） |
 | 工具名芯片 + 一行摘要，点开才见全文 | dsh `ui-tool` GenericToolCard |
 | 输入条被一张门闩卡顶掉：工具名 + 摘要 + 拒/批 | dsh `ApprovalPanel`（composer takeover） |
 
