@@ -35,11 +35,11 @@ def expected_artifacts(triple: str) -> list[str]:
     if "apple-darwin" in triple:
         return [
             "target/release/bundle/macos/Theseus.app",
-            "target/release/bundle/dmg/Theseus_0.7.0_aarch64.dmg  (or x64)",
+            "target/release/bundle/dmg/Theseus_0.7.1_aarch64.dmg  (or x64)",
         ]
     if "windows" in triple:
         return [
-            "target/release/bundle/nsis/Theseus_0.7.0_x64-setup.exe  (or arm64)",
+            "target/release/bundle/nsis/Theseus_0.7.1_x64-setup.exe  (or arm64)",
             "dist/theseus-portable-<triple>/   (if --portable)",
         ]
     return ["(this host does not emit .app / NSIS)"]
@@ -86,7 +86,7 @@ def run_check() -> None:
         "binaries/theseus-app-server",
         '"productName": "Theseus"',
         '"identifier": "dev.theseus.desktop"',
-        '"version": "0.7.0"',
+        '"version": "0.7.1"',
         '"signingIdentity": "-"',
         '"certificateThumbprint": null',
     ]

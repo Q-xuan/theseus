@@ -3,12 +3,9 @@
   const $ = (id) => document.getElementById(id);
   const logEl = $("log");
   const emptyEl = $("empty");
+  const emptyCtaEl = $("empty-cta");
   const bannerEl = $("banner");
   const titleEl = $("title");
-  const metaEl = $("meta");
-  const runEl = $("run-state");
-  const threadIdBox = $("thread-id-box");
-  const threadIdEl = $("thread-id");
   const copyThreadIdEl = $("copy-thread-id");
   const inputEl = $("input");
   const sendEl = $("send");
@@ -68,21 +65,35 @@
     return cleaned || "请求失败。";
   }
 
+  function shortLabel(text, fallback) {
+    const line = String(text || "")
+      .split(/\n/)[0]
+      .replace(/\s+/g, " ")
+      .trim();
+    if (!line || /^thr_[A-Za-z0-9_-]+$/.test(line)) return fallback || "新对话";
+    const chars = Array.from(line);
+    if (chars.length <= 32) return line;
+    return `${chars.slice(0, 32).join("")}…`;
+  }
+
+  function workspaceLabel(path) {
+    const raw = String(path || "").trim();
+    if (!raw) return "";
+    const parts = raw.replace(/\\/g, "/").split("/").filter(Boolean);
+    return parts[parts.length - 1] || raw;
+  }
+
+  function setTitle(text, fallback) {
+    titleEl.textContent = shortLabel(text, fallback || (threadId ? "新对话" : "未打开对话"));
+  }
+
   function showThreadId(id) {
     threadId = id || null;
-    if (threadId) {
-      threadIdEl.textContent = threadId;
-      threadIdEl.title = threadId;
-      threadIdBox.classList.remove("hidden");
-      copyThreadIdEl.disabled = false;
-      copyThreadIdEl.textContent = "复制 id";
-    } else {
-      threadIdEl.textContent = "";
-      threadIdEl.title = "";
-      threadIdBox.classList.add("hidden");
-      copyThreadIdEl.disabled = true;
-      copyThreadIdEl.textContent = "复制 id";
-    }
+    copyThreadIdEl.classList.toggle("hidden", !threadId);
+    copyThreadIdEl.disabled = !threadId;
+    copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
+    titleEl.title = threadId || "";
+    syncEmpty();
   }
 
   function copyText(text) {
@@ -129,7 +140,6 @@
 
   function setBusy(on) {
     busy = on;
-    runEl.classList.toggle("hidden", !on);
     modelBusyEl.classList.toggle("on", on);
     sendEl.classList.toggle("hidden", on);
     stopEl.classList.toggle("hidden", !on);
@@ -139,12 +149,23 @@
     stopEl.disabled = !on;
     const connected = Boolean(ws && ws.readyState === 1 && !busy);
     newEl.disabled = !connected;
+    emptyCtaEl.disabled = !connected;
+  }
+
+  function clearBusyChrome() {
+    busy = false;
+    modelBusyEl.classList.remove("on");
+    stopEl.classList.add("hidden");
+    stopEl.disabled = true;
+    sendEl.classList.remove("hidden");
   }
 
   function renderWorkspace(path) {
     currentWorkspace = path || currentWorkspace || "";
-    workspaceChipEl.textContent = currentWorkspace ? currentWorkspace : "工作区";
+    const label = workspaceLabel(currentWorkspace);
+    workspaceChipEl.textContent = label;
     workspaceChipEl.title = currentWorkspace;
+    workspaceChipEl.classList.toggle("hidden", !label);
     if (prefsWorkspaceEl && document.activeElement !== prefsWorkspaceEl) {
       prefsWorkspaceEl.value = currentWorkspace;
     }
@@ -202,6 +223,7 @@
   }
 
   function openPrefs() {
+    document.body.classList.add("prefs-open");
     prefsMaskEl.classList.remove("hidden");
     prefsModelEl.value = currentModel;
     prefsWorkspaceEl.value = currentWorkspace;
@@ -211,6 +233,7 @@
   }
 
   function closePrefs() {
+    document.body.classList.remove("prefs-open");
     prefsMaskEl.classList.add("hidden");
     prefsKeyEl.value = "";
   }
@@ -318,14 +341,8 @@
     }
   }
 
-  function relativeTime(ts) {
-    if (!ts) return "";
-    const sec = ts > 1e12 ? Math.floor(ts / 1000) : ts;
-    const d = Date.now() / 1000 - sec;
-    if (d < 45) return "刚刚";
-    if (d < 3600) return `${Math.floor(d / 60)}分钟前`;
-    if (d < 86400) return `${Math.floor(d / 3600)}小时前`;
-    return `${Math.floor(d / 86400)}天前`;
+  function syncEmpty() {
+    emptyEl.classList.toggle("hidden", Boolean(threadId) || logEl.children.length > 0);
   }
 
   function upsert(item) {
@@ -342,10 +359,10 @@
     if (type === "userMessage") {
       li.classList.add("user");
       const text = (item.content || []).map((c) => c.text || "").join("\n");
-      li.innerHTML = `<span class="who">你</span><div class="bubble">${escapeHtml(text)}</div>`;
+      li.innerHTML = `<div class="bubble">${escapeHtml(text)}</div>`;
     } else if (type === "agentMessage") {
       li.classList.add("agent");
-      li.innerHTML = `<span class="who">助手</span><div class="bubble">${escapeHtml(item.text || "")}</div>`;
+      li.innerHTML = `<div class="bubble">${escapeHtml(item.text || "")}</div>`;
     } else if (type === "toolCall" || type === "toolResult") {
       li.classList.add("tool");
       const isErr = type === "toolResult" && item.isError;
@@ -368,11 +385,11 @@
       li.classList.add("tool");
       li.textContent = type || "item";
     }
-    emptyEl.classList.toggle("hidden", logEl.children.length > 0);
+    syncEmpty();
     li.scrollIntoView({ block: "end" });
   }
 
-  function addTurnMark(label) {
+  function addTurnMark() {
     const n = turnCount;
     const li = document.createElement("li");
     li.className = "turn-mark";
@@ -381,11 +398,11 @@
     btn.className = "turn-anchor";
     btn.id = `turn-${n}`;
     btn.dataset.turn = String(n);
-    btn.textContent = label || `回合 ${n}`;
+    btn.setAttribute("aria-label", `回合 ${n}`);
     btn.addEventListener("click", () => scrollToTurn(n));
     li.appendChild(btn);
     logEl.appendChild(li);
-    emptyEl.classList.add("hidden");
+    syncEmpty();
     renderTimeline();
     setActiveTurn(n);
   }
@@ -400,11 +417,11 @@
   function clearLog() {
     items.clear();
     logEl.innerHTML = "";
-    emptyEl.classList.remove("hidden");
     turnCount = 0;
     activeTurn = 0;
     timelineEl.innerHTML = "";
     hideApproval();
+    syncEmpty();
   }
 
   function hideApproval() {
@@ -456,12 +473,11 @@
       btn.className = "session" + (t.id === threadId ? " active" : "");
       btn.dataset.id = t.id;
       const waiting = Boolean(approval && approval.threadId === t.id);
-      const when = relativeTime(t.updatedAt);
       btn.innerHTML = `<span class="session-dot${
         waiting ? "" : " off"
       }"></span><span class="session-preview">${escapeHtml(
-        t.preview || t.id
-      )}</span><span class="session-when">${escapeHtml(when)}</span>`;
+        shortLabel(t.preview, "新对话")
+      )}</span>`;
       btn.addEventListener("click", () => {
         railEl.classList.remove("open");
         resumeThread(t.id).catch((err) => {
@@ -476,15 +492,13 @@
     const thread = result && result.thread;
     if (!thread) return;
     showThreadId(thread.id);
-    threadPreview = thread.preview || thread.id;
-    const cwd = thread.cwd || currentWorkspace || "工作区";
-    titleEl.textContent = threadPreview;
-    metaEl.textContent = cwd;
+    threadPreview = shortLabel(thread.preview, "新对话");
+    setTitle(threadPreview, "新对话");
     renderWorkspace(thread.cwd || currentWorkspace);
     clearLog();
     for (const turn of thread.turns || []) {
       turnCount += 1;
-      addTurnMark(`回合 ${turnCount}`);
+      addTurnMark();
       for (const item of turn.items || []) {
         if (item && item.id) upsert(item);
       }
@@ -500,15 +514,14 @@
         const thread = msg.params && msg.params.thread;
         if (!thread) return;
         showThreadId(thread.id);
-        threadPreview = thread.preview || thread.id;
-        titleEl.textContent = threadPreview;
-        metaEl.textContent = thread.cwd || currentWorkspace || "工作区";
+        threadPreview = shortLabel(thread.preview, "新对话");
+        setTitle(threadPreview, "新对话");
         if (thread.cwd) renderWorkspace(thread.cwd);
         break;
       }
       case "turn/started": {
         turnCount += 1;
-        addTurnMark(`回合 ${turnCount}`);
+        addTurnMark();
         break;
       }
       case "item/started":
@@ -518,8 +531,8 @@
         if (item && item.type === "userMessage") {
           const text = (item.content || []).map((c) => c.text || "").join("\n");
           if (text) {
-            threadPreview = text.slice(0, 80);
-            titleEl.textContent = threadPreview;
+            threadPreview = shortLabel(text, "新对话");
+            setTitle(threadPreview, "新对话");
           }
         }
         break;
@@ -583,7 +596,7 @@
     showBanner("");
     clearLog();
     showThreadId(null);
-    titleEl.textContent = "新对话";
+    setTitle("新对话", "新对话");
     const params = {};
     if (currentModel) params.model = currentModel;
     if (currentWorkspace) params.cwd = currentWorkspace;
@@ -625,13 +638,11 @@
   }
 
   function connect() {
-    titleEl.textContent = "未打开对话";
+    setTitle("未打开对话", "未打开对话");
     showThreadId(null);
-    metaEl.textContent = "正在连接…";
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.onopen = () => {
-      metaEl.textContent = "已连接 · 选一个线程或开新对话";
       setBusy(false);
       loadRecent().catch(() => {});
     };
@@ -654,11 +665,11 @@
       else wait.resolve(msg.result);
     };
     ws.onclose = () => {
-      setBusy(true);
+      clearBusyChrome();
       inputEl.disabled = true;
       sendEl.disabled = true;
-      stopEl.disabled = true;
       newEl.disabled = true;
+      emptyCtaEl.disabled = true;
       showBanner("和 sidecar 的连接断了。关掉窗口再开（Linux 预览则刷新页面）。");
     };
   }
@@ -689,11 +700,14 @@
     stopTurn();
   });
 
-  newEl.addEventListener("click", () => {
+  function startFromCta() {
     startThread().catch((err) => {
       showBanner(readableError(err) || "开不了新对话。");
     });
-  });
+  }
+
+  newEl.addEventListener("click", startFromCta);
+  emptyCtaEl.addEventListener("click", startFromCta);
 
   openPrefsEl.addEventListener("click", openPrefs);
   closePrefsEl.addEventListener("click", closePrefs);
@@ -756,18 +770,18 @@
     if (!threadId) return;
     copyText(threadId)
       .then(() => {
-        copyThreadIdEl.textContent = "已复制";
+        copyThreadIdEl.setAttribute("aria-label", "已复制");
         setTimeout(() => {
-          if (copyThreadIdEl.textContent === "已复制") {
-            copyThreadIdEl.textContent = "复制 id";
+          if (copyThreadIdEl.getAttribute("aria-label") === "已复制") {
+            copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
           }
         }, 1200);
       })
       .catch(() => {
-        copyThreadIdEl.textContent = "复制失败";
+        copyThreadIdEl.setAttribute("aria-label", "复制失败");
         setTimeout(() => {
-          if (copyThreadIdEl.textContent === "复制失败") {
-            copyThreadIdEl.textContent = "复制 id";
+          if (copyThreadIdEl.getAttribute("aria-label") === "复制失败") {
+            copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
           }
         }, 1200);
       });
