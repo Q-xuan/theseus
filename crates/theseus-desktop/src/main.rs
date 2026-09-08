@@ -48,9 +48,10 @@ The sidecar is theseus-app-server (stdio JSON-RPC). Locate order:
   2. next to this executable (packaged .app / NSIS / portable folder)
   3. target/debug|release (source-tree cargo run)
 
-{key} is inherited from the user/system environment or the parent
-process. It is not a flag, not a settings field, not a prompt,
-and not sent to the WebView. No auto-update.
+{key} is inherited from the user/system environment, the parent
+process, or an optional paste on the one settings card (user env /
+OS keychain only — never the repo, jsonl, or WebView storage).
+No OAuth. No auto-update.
 
 Preview port: ${port} or {default} (127.0.0.1 only).
 ",
@@ -94,9 +95,10 @@ fn run_preview() {
     eprintln!(
         "theseus-desktop preview http://{addr}  (127.0.0.1 only; stdio↔WS bridge is transitional)"
     );
+    theseus_desktop::hydrate_process_key();
     if !key_is_set() {
         eprintln!(
-            "{ENV_API_KEY} is not set; turn/start will return an error until you export it and restart. The key is never shown in the UI."
+            "{ENV_API_KEY} is not set; paste it on the settings card or export it. The key is never shown in the UI."
         );
     }
 

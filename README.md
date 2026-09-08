@@ -255,7 +255,7 @@ cargo run -p theseus-web
 
 `theseus-desktop` 只做两件事：管 `theseus-app-server` 子进程的生死，把 **stdio JSON-RPC** 接到一层薄客户端。壳里**没有** derive / tool loop / SessionEvent 新 kind。
 
-`THESEUS_LLM_API_KEY` 只从启动 App 的**用户/系统环境**（或父进程）继承给 sidecar。没有密钥框、没有 `--api-key`、不进 WebView、**没有自动更新**、**不强制商店签名**。仓库和 Release 产物里都不带密钥。
+`THESEUS_LLM_API_KEY` 从启动 App 的**用户/系统环境**（或父进程）继承给 sidecar；设置卡也可选粘贴，只写入用户环境 / OS 钥匙串。没有 `--api-key`、不进 jsonl / SessionEvent / WebView 存储、**没有自动更新**、**不强制商店签名**、**没有 OAuth**。仓库和 Release 产物里都不带密钥。
 
 ### 本机聊一轮（源码 / 已安装都一样）
 
@@ -274,8 +274,8 @@ cargo run -p theseus-desktop --features gui
 
 在打开的窗口里验收：
 
-1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是暗蓝底。顶栏显示当前 **thread id**，可点 **复制 id**（只复制协议里的 id，没有分享短链）。输入条底栏显示当前模型名（`THESEUS_LLM_MODEL` / `~/.theseus/model`），可改字符串，没有密钥框、没有 OAuth。
-2. **流式**：发 `只回复：ping`。主列出现「回合」标记、你的气泡、流式助手。左侧时间线短刻度可点，跳到对应回合（只是现有 `turn/started` / `thread.turns` 的投影）。
+1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是暗蓝底。顶栏显示当前 **thread id**，可点 **复制 id**（只复制协议里的 id，没有分享短链）。顶栏齿轮打开**一张**设置卡：接口地址（`THESEUS_LLM_BASE_URL` / `~/.theseus/base_url`）、模型预设、工作区路径、密钥是否已配置。输入条底栏仍是模型条（`THESEUS_LLM_MODEL` / `~/.theseus/model`）。没有 OAuth、没有设置迷宫。
+2. **流式**：发 `只回复：ping`。主列出现「回合」标记、你的气泡、流式助手。生成中输入条出现 **停止**（`turn/interrupt` → 现有 `turn/end`）。左侧时间线短刻度可点，跳到对应回合（只是现有 `turn/started` / `thread.turns` 的投影）。
 3. **拒绝一次**：再发「用 write 在工作区写 `scratch.txt`，内容 `no`」。输入条被一张门闩卡顶掉（琥珀条 + 工具名 + 摘要）。点 **拒绝**。应出现工具失败行，文件不应存在。
 4. **批准一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」。同一张卡点 **批准**。工作区里有 `hello.txt`。
 5. **resume**：左栏预览应更新；点另一行再点回来，历史还在（`thread/resume`）。
@@ -289,13 +289,13 @@ cargo run -p theseus-desktop --features gui
 推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.2**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.6.2_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.2_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.6.2_x64-setup.exe`（当前用户 NSIS）
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.7.0**，不一定等于 git 标签）：
+   - macOS：`Theseus_0.7.0_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.7.0_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
+   - Windows：`Theseus_0.7.0_x64-setup.exe`（当前用户 NSIS）
 3. **未签名**：
    - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
    - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
-4. 密钥仍然**只**从用户/系统环境变量 `THESEUS_LLM_API_KEY` 读取。没有密钥设置页，也不要把 key 写进仓库或 `.env`。
+4. 密钥从用户/系统环境变量 `THESEUS_LLM_API_KEY` 读取，或在设置卡粘贴（只写入用户环境 / 钥匙串）。不要把 key 写进仓库或 `.env`。
 
 维护者：先审查再**由人**推 `v*` 标签（工作流不会创建标签）。已有标签可在 Actions 里对 `release-desktop` 做 `workflow_dispatch`，**必须**填一个已存在的 tag；不接受空 tag，以免误建 Release。
 
@@ -311,8 +311,8 @@ python3 packaging/build-desktop.py
 | 产物 | 路径（相对仓库根） |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.2_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.2_*-setup.exe` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.7.0_*.dmg` |
+| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.7.0_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
 
 包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
@@ -321,15 +321,16 @@ python3 packaging/build-desktop.py
 
 | 变量 | 作用 |
 | --- | --- |
-| `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
-| `THESEUS_LLM_MODEL` | sidecar 默认模型；桌面输入条底栏可读可写。`PI_LLM_MODEL` **已弃用**，仅短读兼容。UI 改名会写入 `~/.theseus/model`（不是密钥），新对话经已有的 `thread/start.model` 带上 |
+| `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。设置卡可粘贴，只写入用户环境 / 钥匙串。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
+| `THESEUS_LLM_BASE_URL` | sidecar 接口地址；设置卡写入当前进程 + `~/.theseus/base_url`。`PI_LLM_BASE_URL` **已弃用**，仅短读兼容 |
+| `THESEUS_LLM_MODEL` | sidecar 默认模型；桌面输入条底栏 / 设置卡可读可写。`PI_LLM_MODEL` **已弃用**，仅短读兼容。UI 改名会写入 `~/.theseus/model`（不是密钥），新对话经已有的 `thread/start.model` 带上 |
 | `THESEUS_TOOL_APPROVAL` | 默认 `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
 | `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
 | `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
-**Windows**：设置 → 系统 → 关于 → 高级系统设置 → 环境变量 → **用户变量** 新建 `THESEUS_LLM_API_KEY` → 完全退出 Theseus 再开（必要时注销，让 Explorer 重新继承）。
+**Windows**：设置卡粘贴会 `setx` 用户变量；也可：系统 → 关于 → 高级系统设置 → 环境变量 → **用户变量** 新建 `THESEUS_LLM_API_KEY`。完全退出 Theseus 再开（必要时注销，让 Explorer 重新继承）。
 
-**macOS**：Finder 启动的 App **不**读 `~/.zshrc`。登录会话里 `launchctl setenv THESEUS_LLM_API_KEY '...'` 后再从 Dock 打开；或直接跑 `/Applications/Theseus.app/Contents/MacOS/Theseus`（继承当前 shell）。`open -a Theseus` 传不进 export。不要做密钥输入框。
+**macOS**：Finder 启动的 App **不**读 `~/.zshrc`。设置卡粘贴写入钥匙串 + `launchctl setenv`。也可在登录会话里 `launchctl setenv THESEUS_LLM_API_KEY '...'` 后再从 Dock 打开；或直接跑 `/Applications/Theseus.app/Contents/MacOS/Theseus`（继承当前 shell）。`open -a Theseus` 传不进 export。没有 OAuth。
 
 ### 生命周期
 
@@ -359,11 +360,11 @@ python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交�
 | 左栏 240 / 12px 边距 / 38×12「新对话」 | dsh `ui-sidebar` `SidebarRoot.module.css` |
 | 「最近」一行预览 + 相对时间 + 选中底 + 等待琥珀点 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
 | 主列回合标记 + 左侧时间线刻度 / 用户气泡 / 助手正文 | dsh `ui-conversation` ChatView；Codex thread |
-| 输入条底栏模型名（环境变量 / `~/.theseus/model`） | Codex composer model strip（只借手感，不是 Codex 功能） |
+| 输入条底栏模型名 + 一张设置卡（地址 / 模型 / 工作区 / 密钥状态） | 薄设置，不是 Codex 设置墙 |
 | 工具名芯片 + 一行摘要，点开才见全文 | dsh `ui-tool` GenericToolCard |
 | 输入条被一张门闩卡顶掉：工具名 + 摘要 + 拒/批 | dsh `ApprovalPanel`（composer takeover） |
 
-不复刻闭源 Codex.app 像素，不上第二套前端框架，不加搜索墙 / 工作区树 / 设置页。`theseus-web/static` 仍是协议冒烟页，不是桌面终态。
+不复刻闭源 Codex.app 像素，不上第二套前端框架，不加搜索墙 / 工作区树 / 设置迷宫。`theseus-web/static` 仍是协议冒烟页，不是桌面终态。
 
 冒烟：`cargo test -p theseus-desktop`（含打包合约：`bundle.active`、内嵌 sidecar、无 updater）。
 

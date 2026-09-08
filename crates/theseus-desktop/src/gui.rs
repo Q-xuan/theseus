@@ -1,10 +1,11 @@
 use tauri::{RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 use crate::sidecar::Sidecar;
-use crate::{key_is_set, ENV_API_KEY};
+use crate::{hydrate_process_key, key_is_set, ENV_API_KEY};
 
 /// Open a native window onto the loopback client. Sidecar stays on stdio.
 pub fn run_gui() {
+    hydrate_process_key();
     let (sidecar, rx) = match Sidecar::start() {
         Ok(pair) => pair,
         Err(err) => {

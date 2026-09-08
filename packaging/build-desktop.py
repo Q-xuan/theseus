@@ -35,11 +35,11 @@ def expected_artifacts(triple: str) -> list[str]:
     if "apple-darwin" in triple:
         return [
             "target/release/bundle/macos/Theseus.app",
-            "target/release/bundle/dmg/Theseus_0.6.2_aarch64.dmg  (or x64)",
+            "target/release/bundle/dmg/Theseus_0.7.0_aarch64.dmg  (or x64)",
         ]
     if "windows" in triple:
         return [
-            "target/release/bundle/nsis/Theseus_0.6.2_x64-setup.exe  (or arm64)",
+            "target/release/bundle/nsis/Theseus_0.7.0_x64-setup.exe  (or arm64)",
             "dist/theseus-portable-<triple>/   (if --portable)",
         ]
     return ["(this host does not emit .app / NSIS)"]
@@ -86,7 +86,7 @@ def run_check() -> None:
         "binaries/theseus-app-server",
         '"productName": "Theseus"',
         '"identifier": "dev.theseus.desktop"',
-        '"version": "0.6.2"',
+        '"version": "0.7.0"',
         '"signingIdentity": "-"',
         '"certificateThumbprint": null',
     ]
@@ -155,9 +155,10 @@ def assemble_portable(profile: str) -> Path:
         "Theseus portable folder\n"
         "Keep both binaries in this directory. Double-click theseus-desktop "
         "(the Tauri bundle uses the name Theseus).\n"
-        "THESEUS_LLM_API_KEY is inherited from the user/system environment only.\n"
-        "Legacy PI_* names still work as a temporary fallback.\n"
-        "No key box. Closing the window must kill theseus-app-server.\n",
+        "THESEUS_LLM_API_KEY is inherited from the user/system environment, "
+        "or pasted on the one settings card into the user environment / OS keychain.\n"
+        "Never written to the repo, jsonl, or this folder. Legacy PI_* names still work as a temporary fallback.\n"
+        "Closing the window must kill theseus-app-server.\n",
         encoding="utf-8",
     )
     print(f"portable {dest_dir}")

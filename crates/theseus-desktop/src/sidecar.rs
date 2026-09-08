@@ -8,7 +8,7 @@ use std::time::{Duration, Instant};
 
 use crate::locate::{locate_app_server, LocateError};
 
-const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.6.2"}}}"#;
+const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.7.0"}}}"#;
 const SHUTDOWN_LINE: &str = r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":{}}"#;
 
 #[derive(Debug, thiserror::Error)]
@@ -59,9 +59,11 @@ impl Sidecar {
             cmd.stderr(Stdio::null());
         }
         // Inherit the parent environment (including THESEUS_LLM_API_KEY / PI_LLM_API_KEY).
-        // Never pass the key as an argument. Model is a non-secret string: pin
-        // THESEUS_LLM_MODEL from env / ~/.theseus/model so the child matches the strip.
+        // Never pass the key as an argument. Model and base URL are non-secret:
+        // pin them from env / ~/.theseus so the child matches the settings card.
+        crate::hydrate_process_key();
         cmd.env(crate::ENV_MODEL, crate::sidecar_model());
+        cmd.env(crate::ENV_BASE_URL, crate::sidecar_base_url());
         debug_assert!(
             cmd.get_args().all(|a| {
                 let s = a.to_string_lossy();

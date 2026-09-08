@@ -6,10 +6,10 @@ Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 
 
 推送已存在的 `v*` 标签（或在 Actions 里对**已有**标签 `workflow_dispatch`）后，[`.github/workflows/release-desktop.yml`](../.github/workflows/release-desktop.yml) 在 **macos-latest** / **windows-latest** 本机 runner 上跑下面同一条 `python3 packaging/build-desktop.py`，把产物挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。**不会**自动创建或推送标签。
 
-| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.6.2） |
+| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.7.0） |
 | --- | --- |
-| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.6.2_aarch64.dmg`；另附 `Theseus_0.6.2_aarch64.app.zip`（解压得 `Theseus.app`） |
-| Windows（`windows-latest` ≈ x64） | `Theseus_0.6.2_x64-setup.exe`（当前用户 NSIS） |
+| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.7.0_aarch64.dmg`；另附 `Theseus_0.7.0_aarch64.app.zip`（解压得 `Theseus.app`） |
+| Windows（`windows-latest` ≈ x64） | `Theseus_0.7.0_x64-setup.exe`（当前用户 NSIS） |
 | 便携 zip | 默认 `build-desktop.py` **不**打便携目录；本机 `python3 packaging/build-desktop.py --portable` 才有。CI 若看到 `dist/theseus-portable-*` 会顺带打成 zip |
 
 **未签名。** 无 Apple 公证 / Developer ID，无 Windows Authenticode，无 Tauri updater。
@@ -17,7 +17,7 @@ Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 
 - macOS Gatekeeper：第一次从 Finder 打开若被拦，**右键 → 打开**。
 - Windows SmartScreen：可能提示未知发布者 → **更多信息** → **仍要运行**。
 
-`THESEUS_LLM_API_KEY` 仍然**只**从用户或系统环境变量进入 sidecar。没有密钥 UI，Release / 仓库 / workflow secret 里都不要放 key。安装后怎么写环境变量见下面「环境变量」。
+`THESEUS_LLM_API_KEY` 从用户或系统环境变量进入 sidecar，或从桌面那张设置卡粘贴写入用户环境 / 钥匙串。Release / 仓库 / workflow secret / jsonl 里都不要放 key。安装后怎么写见下面「环境变量」。
 
 Linux 的 [`.github/workflows/linux.yml`](../.github/workflows/linux.yml) 只做 `--check` / `cargo test` / `cargo check`，保持不动。
 
@@ -59,8 +59,8 @@ python3 packaging/build-desktop.py --portable
 | 平台 | 产物 | 路径 |
 | --- | --- | --- |
 | macOS | 可双击的 `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.6.2_*.dmg` |
-| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.6.2_*-setup.exe` |
+| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.7.0_*.dmg` |
+| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.7.0_*-setup.exe` |
 | 任一 | 便携目录 | `dist/theseus-portable-<triple>/` |
 
 `.app` 里 sidecar 在 `Contents/MacOS/theseus-app-server`（与 `Theseus` 同级）。NSIS / 便携则是 `theseus-app-server.exe` 紧挨主程序。`locate` 先看 `THESEUS_APP_SERVER_BIN`，再看可执行文件旁边，最后才是源码树的 `target/`。
@@ -69,21 +69,21 @@ python3 packaging/build-desktop.py --portable
 
 ## 安装之后怎么用
 
-1. 双击 `Theseus.app` / 开始菜单里的 **Theseus** / 便携目录里的 `theseus-desktop`。应出窗口，**没有**密钥框，**没有**黑控制台 / 额外 Terminal。Release GUI 默认不往 stdout 打桥接地址。
-2. 密钥只从 **用户或系统环境变量**（或从终端拉起时的父进程）传给 sidecar。
+1. 双击 `Theseus.app` / 开始菜单里的 **Theseus** / 便携目录里的 `theseus-desktop`。应出窗口，**没有**设置迷宫，**没有**黑控制台 / 额外 Terminal。Release GUI 默认不往 stdout 打桥接地址。
+2. 密钥从 **用户或系统环境变量**（或设置卡粘贴写入的用户环境 / 钥匙串）传给 sidecar。接口地址、模型、工作区也在同一张卡。生成中可点 **停止**。
 3. 关窗必须带走 `theseus-app-server`（活动监视器 / 任务管理器里不应留下孤儿）。
 
 ### 环境变量
 
 | 变量 | 谁读 | 默认 |
 | --- | --- | --- |
-| `THESEUS_LLM_API_KEY` | sidecar（`theseus-llm`） | 空 → `turn/start` RPC 错，不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
-| `THESEUS_LLM_BASE_URL` / `THESEUS_LLM_MODEL` | sidecar；桌面底栏可读可写模型名 | 见主 README。`PI_LLM_*` **已弃用**，仅短读兼容。改名落在 `~/.theseus/model`，不是密钥 |
+| `THESEUS_LLM_API_KEY` | sidecar（`theseus-llm`） | 空 → `turn/start` RPC 错，不写 turn。设置卡可粘贴到用户环境 / 钥匙串。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
+| `THESEUS_LLM_BASE_URL` / `THESEUS_LLM_MODEL` | sidecar；桌面设置卡 + 底栏 | 见主 README。`PI_LLM_*` **已弃用**，仅短读兼容。地址落在 `~/.theseus/base_url`，模型落在 `~/.theseus/model`，都不是密钥 |
 | `THESEUS_TOOL_APPROVAL` | sidecar | `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
 | `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | sidecar | `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`，不因未设 `HOME` 落到 `/tmp/theseus/sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
 | `THESEUS_APP_SERVER_BIN` | 壳（调试用） | 包内嵌的 sidecar。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
-不要把 key 写进仓库、命令行、WebView、plist 里的明文配置页（本项目没有设置页）。
+不要把 key 写进仓库、命令行、WebView、jsonl、SessionEvent。设置卡粘贴只走用户环境 / 钥匙串。
 
 **Windows（双击能读到 key）**
 
@@ -114,7 +114,7 @@ export THESEUS_LLM_API_KEY='...'
 默认门闩是 `approve`。不要设 `THESEUS_TOOL_APPROVAL=auto`。
 
 1. **新对话**：左栏「新对话」。最近列表多一行。
-2. **流式**：发 `只回复：ping`。主列有回合标记、左侧时间线、用户气泡、流式助手。输入条底栏是当前模型名。
+2. **流式**：发 `只回复：ping`。主列有回合标记、左侧时间线、用户气泡、流式助手。输入条底栏是当前模型名；生成中可 **停止**。顶栏齿轮是一张设置卡。
 3. **拒一次**：发「用 write 在工作区写 `scratch.txt`，内容 `no`」。输入条被门闩卡顶掉 → **拒绝**。工具失败行；文件不存在。
 4. **批一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」→ **批准**。工作区有文件。
 5. **resume**：点另一行再点回来，历史还在。
