@@ -65,15 +65,31 @@
     return cleaned || "请求失败。";
   }
 
+  const TITLE_MAX = 28;
+
+  function firstSentence(text) {
+    const raw = String(text || "").replace(/\s+/g, " ").trim();
+    if (!raw) return "";
+    const stop = raw.search(/[。！？!?]/);
+    if (stop >= 0) return raw.slice(0, stop + 1).trim();
+    return raw.split(/[\n\r]/)[0].trim() || raw;
+  }
+
   function shortLabel(text, fallback) {
-    const line = String(text || "")
-      .split(/\n/)[0]
-      .replace(/\s+/g, " ")
-      .trim();
-    if (!line || /^thr_[A-Za-z0-9_-]+$/.test(line)) return fallback || "新对话";
-    const chars = Array.from(line);
-    if (chars.length <= 32) return line;
-    return `${chars.slice(0, 32).join("")}…`;
+    const sentence = firstSentence(text);
+    if (!sentence || /^thr_[A-Za-z0-9_-]+$/.test(sentence)) return fallback || "新对话";
+    const chars = Array.from(sentence);
+    if (chars.length <= TITLE_MAX) return sentence;
+    return `${chars.slice(0, TITLE_MAX).join("")}…`;
+  }
+
+  function userItemText(item) {
+    const content = item && item.content;
+    if (typeof content === "string") return content;
+    if (Array.isArray(content)) {
+      return content.map((c) => (c && c.text) || "").join("\n");
+    }
+    return "";
   }
 
   function workspaceLabel(path) {
@@ -83,8 +99,8 @@
     return parts[parts.length - 1] || raw;
   }
 
-  function setTitle(text, fallback) {
-    titleEl.textContent = shortLabel(text, fallback || (threadId ? "新对话" : "未打开对话"));
+  function setTitle(raw, fallback) {
+    titleEl.textContent = shortLabel(raw, fallback || (threadId ? "新对话" : "未打开对话"));
   }
 
   function showThreadId(id) {
@@ -493,7 +509,7 @@
     if (!thread) return;
     showThreadId(thread.id);
     threadPreview = shortLabel(thread.preview, "新对话");
-    setTitle(threadPreview, "新对话");
+    setTitle(thread.preview, "新对话");
     renderWorkspace(thread.cwd || currentWorkspace);
     clearLog();
     for (const turn of thread.turns || []) {
@@ -515,7 +531,7 @@
         if (!thread) return;
         showThreadId(thread.id);
         threadPreview = shortLabel(thread.preview, "新对话");
-        setTitle(threadPreview, "新对话");
+        setTitle(thread.preview, "新对话");
         if (thread.cwd) renderWorkspace(thread.cwd);
         break;
       }
@@ -529,10 +545,10 @@
         const item = msg.params && msg.params.item;
         if (item && item.id) upsert(item);
         if (item && item.type === "userMessage") {
-          const text = (item.content || []).map((c) => c.text || "").join("\n");
+          const text = userItemText(item);
           if (text) {
             threadPreview = shortLabel(text, "新对话");
-            setTitle(threadPreview, "新对话");
+            setTitle(text, "新对话");
           }
         }
         break;
@@ -615,6 +631,8 @@
   async function sendTurn(text) {
     if (!threadId || busy || approval) return;
     showBanner("");
+    setTitle(text, "新对话");
+    threadPreview = shortLabel(text, "新对话");
     setBusy(true);
     try {
       await rpc("turn/start", {

@@ -184,12 +184,15 @@ body {
 .title-cluster {
   flex: 1 1 auto;
   min-width: 0;
+  max-width: 18em;
   display: flex;
   align-items: center;
   gap: 4px;
+  overflow: hidden;
 }
 
 .title {
+  flex: 1 1 auto;
   min-width: 0;
   font-weight: 580;
   overflow: hidden;

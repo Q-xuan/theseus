@@ -83,6 +83,14 @@ fn desktop_ui_stays_a_client() {
     assert!(js.contains("clipboard.writeText") || js.contains("copyText"));
     assert!(js.contains("showThreadId"));
     assert!(js.contains("shortLabel"), "titles and sidebar do not dump long prompts");
+    assert!(js.contains("TITLE_MAX = 28"), "header title is first-sentence + hard cap");
+    assert!(js.contains("firstSentence"));
+    assert!(js.contains("[。！？!?]"), "title cuts at the first sentence");
+    assert!(
+        js.contains("setTitle(text, \"新对话\")"),
+        "after send / while streaming, title truncates the user prompt"
+    );
+    assert!(!js.contains("titleEl.textContent = text"));
     assert!(!js.contains("class=\"who\""), "no 你/助手 role tags");
     assert!(!js.contains("t.preview || t.id"), "sidebar is preview only");
     assert!(
