@@ -61,11 +61,34 @@ impl From<io::Error> for PersistError {
     }
 }
 
+/// User home for `~/.theseus/sessions`.
+///
+/// Order: `HOME` → `USERPROFILE` → [`dirs::home_dir`]. A normal Windows
+/// install (Explorer / Start Menu) has `USERPROFILE` even when Unix `HOME`
+/// is unset — do not treat that as “no home”.
+pub fn user_home_dir() -> Option<PathBuf> {
+    if let Some(home) = first_nonempty_env(&["HOME", "USERPROFILE"]) {
+        return Some(PathBuf::from(home));
+    }
+    dirs::home_dir().filter(|p| !p.as_os_str().is_empty())
+}
+
+/// Last-resort sessions dir when no user home can be resolved at all.
+///
+/// Uses the **platform** temp directory (`std::env::temp_dir`), never a
+/// hardcoded Unix `/tmp/theseus/sessions` — that path is wrong on Windows
+/// and was the installed-build fallback bug.
+fn last_resort_sessions_dir() -> PathBuf {
+    std::env::temp_dir().join("theseus").join(SESSIONS_SUBDIR)
+}
+
 /// Resolve the sessions directory.
 ///
 /// Order: `THESEUS_SESSIONS_DIR` → `PI_SESSIONS_DIR` → `{THESEUS_HOME}/sessions`
 /// → `{PI_HOME}/sessions` → `~/.theseus/sessions` (if present) →
 /// `~/.pi-app/sessions` (if present) → new `~/.theseus/sessions`.
+///
+/// `~` is [`user_home_dir`] (`HOME` / `USERPROFILE` / `dirs::home_dir`).
 pub fn resolve_sessions_dir() -> Result<PathBuf, PersistError> {
     if let Some(dir) = first_nonempty_env(&[ENV_SESSIONS_DIR, ENV_SESSIONS_DIR_LEGACY]) {
         return Ok(PathBuf::from(dir));
@@ -73,11 +96,7 @@ pub fn resolve_sessions_dir() -> Result<PathBuf, PersistError> {
     if let Some(home) = first_nonempty_env(&[ENV_HOME, ENV_HOME_LEGACY]) {
         return Ok(PathBuf::from(home).join(SESSIONS_SUBDIR));
     }
-    let home = std::env::var("HOME")
-        .ok()
-        .filter(|s| !s.trim().is_empty())
-        .ok_or(PersistError::NoHome)?;
-    let home = PathBuf::from(home);
+    let home = user_home_dir().ok_or(PersistError::NoHome)?;
     let canonical = home.join(DEFAULT_DIR_NAME).join(SESSIONS_SUBDIR);
     let legacy = home.join(LEGACY_DIR_NAME).join(SESSIONS_SUBDIR);
     if canonical.is_dir() {
@@ -89,9 +108,12 @@ pub fn resolve_sessions_dir() -> Result<PathBuf, PersistError> {
     Ok(canonical)
 }
 
-/// Like [`resolve_sessions_dir`], but last-resort `/tmp/theseus/sessions` if HOME is missing.
+/// Like [`resolve_sessions_dir`], but last-resort platform temp if home is missing.
+///
+/// A normal installed Windows build must not land on `/tmp/theseus/sessions`
+/// just because `HOME` is unset — [`user_home_dir`] resolves `USERPROFILE`.
 pub fn default_sessions_dir() -> PathBuf {
-    resolve_sessions_dir().unwrap_or_else(|_| PathBuf::from("/tmp/theseus/sessions"))
+    resolve_sessions_dir().unwrap_or_else(|_| last_resort_sessions_dir())
 }
 
 pub fn validate_thread_id(thread_id: &str) -> Result<(), PersistError> {
@@ -306,6 +328,7 @@ fn brace_balanced(line: &str) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use std::path::Path;
     use std::sync::Mutex;
     use theseus_protocol::{
         AssistantChunk, EventData, ThreadMeta, TurnEnd, TurnEndReason, TurnStart, UserMessageEvent,
@@ -395,9 +418,9 @@ mod tests {
         );
         std::env::remove_var(ENV_HOME);
         let got = resolve_sessions_dir().unwrap();
-        let home = std::env::var("HOME").unwrap();
-        let canonical = PathBuf::from(&home).join(".theseus/sessions");
-        let legacy = PathBuf::from(&home).join(".pi-app/sessions");
+        let home = user_home_dir().expect("user home for default sessions path");
+        let canonical = home.join(".theseus/sessions");
+        let legacy = home.join(".pi-app/sessions");
         if canonical.is_dir() {
             assert_eq!(got, canonical);
         } else if legacy.is_dir() {
@@ -405,7 +428,70 @@ mod tests {
         } else {
             assert_eq!(got, canonical);
         }
+        assert_ne!(
+            got,
+            PathBuf::from("/tmp/theseus/sessions"),
+            "resolved home sessions must not be the old Unix /tmp fallback"
+        );
         clear_session_env();
+    }
+
+    fn restore_env(name: &str, previous: Option<String>) {
+        match previous {
+            Some(v) => std::env::set_var(name, v),
+            None => std::env::remove_var(name),
+        }
+    }
+
+    #[test]
+    fn resolve_uses_userprofile_when_unix_home_is_unset() {
+        let _g = ENV_LOCK.lock().unwrap();
+        clear_session_env();
+        let saved_home = std::env::var("HOME").ok();
+        let saved_profile = std::env::var("USERPROFILE").ok();
+        std::env::remove_var("HOME");
+        std::env::set_var("USERPROFILE", r"C:\Users\pi");
+        let got = resolve_sessions_dir().unwrap();
+        assert_eq!(
+            got,
+            PathBuf::from(r"C:\Users\pi")
+                .join(".theseus")
+                .join("sessions")
+        );
+        assert_ne!(got, PathBuf::from("/tmp/theseus/sessions"));
+        assert!(!got.to_string_lossy().replace('\\', "/").contains("/tmp/theseus"));
+        restore_env("HOME", saved_home);
+        restore_env("USERPROFILE", saved_profile);
+        clear_session_env();
+    }
+
+    #[test]
+    fn default_sessions_dir_follows_home_not_hardcoded_unix_tmp() {
+        let _g = ENV_LOCK.lock().unwrap();
+        clear_session_env();
+        let got = default_sessions_dir();
+        let resolved = resolve_sessions_dir().expect("home or USERPROFILE or dirs::home");
+        assert_eq!(got, resolved);
+        assert_ne!(got, PathBuf::from("/tmp/theseus/sessions"));
+        assert!(
+            got.ends_with(Path::new(".theseus").join("sessions"))
+                || got.ends_with(Path::new(".pi-app").join("sessions")),
+            "default sessions should be under user home: {}",
+            got.display()
+        );
+        clear_session_env();
+    }
+
+    #[test]
+    fn last_resort_sessions_dir_uses_platform_temp() {
+        let fallback = last_resort_sessions_dir();
+        assert_eq!(
+            fallback,
+            std::env::temp_dir().join("theseus").join("sessions")
+        );
+        if cfg!(windows) {
+            assert_ne!(fallback, PathBuf::from("/tmp/theseus/sessions"));
+        }
     }
 
     #[test]

@@ -10,3 +10,4 @@ description = "Append-only session log (memory + JSONL) with turn/step fencing a
 theseus-protocol.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
+dirs = "6"

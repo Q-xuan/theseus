@@ -31,6 +31,12 @@ pub fn key_is_set() -> bool {
     theseus_core::first_nonempty_env(&[ENV_API_KEY, ENV_API_KEY_LEGACY]).is_some()
 }
 
+/// Product GUI (Release + `gui`, not `--preview`) stays quiet on stdio.
+/// Debug builds and `--preview` may still print locate / session / bridge lines.
+pub fn verbose_stdio() -> bool {
+    cfg!(debug_assertions) || std::env::args().any(|a| a == "--preview")
+}
+
 #[cfg(feature = "gui")]
 mod gui;
 

@@ -9,7 +9,8 @@
 //!
 //! Each thread's session log is also appended to
 //! `{THESEUS_SESSIONS_DIR|THESEUS_HOME/sessions|~/.theseus/sessions}/{thread_id}.jsonl`
-//! (temporary `PI_*` / `~/.pi-app` read fallbacks).
+//! (`~` is `HOME` / `USERPROFILE` / `dirs::home`; temporary `PI_*` / `~/.pi-app`
+//! read fallbacks).
 //! That file is the same event log — not a derived message table.
 //! `thread/resume` loads the JSONL; `thread/list` scans mtime. No index.
 

@@ -7,6 +7,9 @@
   const titleEl = $("title");
   const metaEl = $("meta");
   const runEl = $("run-state");
+  const threadIdBox = $("thread-id-box");
+  const threadIdEl = $("thread-id");
+  const copyThreadIdEl = $("copy-thread-id");
   const inputEl = $("input");
   const sendEl = $("send");
   const newEl = $("new-thread");
@@ -35,10 +38,57 @@
   function readableError(err) {
     const raw = (err && err.message) || (typeof err === "string" ? err : "");
     if (/API_KEY/i.test(raw) || (/is not set/i.test(raw) && /LLM/i.test(raw))) {
-      return "模型密钥没有传到 sidecar。在用户/系统环境变量里设置后，关掉窗口再打开。不要把密钥写进软件。这一轮没有写入日志。";
+      return "未配置 THESEUS_LLM_API_KEY";
     }
     const cleaned = raw.replace(/THESEUS_[A-Z0-9_]+|PI_[A-Z0-9_]+/g, "配置");
     return cleaned || "请求失败。";
+  }
+
+  function showThreadId(id) {
+    threadId = id || null;
+    if (threadId) {
+      threadIdEl.textContent = threadId;
+      threadIdEl.title = threadId;
+      threadIdBox.classList.remove("hidden");
+      copyThreadIdEl.disabled = false;
+      copyThreadIdEl.textContent = "复制 id";
+    } else {
+      threadIdEl.textContent = "";
+      threadIdEl.title = "";
+      threadIdBox.classList.add("hidden");
+      copyThreadIdEl.disabled = true;
+      copyThreadIdEl.textContent = "复制 id";
+    }
+  }
+
+  function copyText(text) {
+    const fallback = () =>
+      new Promise((resolve, reject) => {
+        const ta = document.createElement("textarea");
+        ta.value = text;
+        ta.setAttribute("readonly", "");
+        ta.style.position = "fixed";
+        ta.style.left = "-9999px";
+        document.body.appendChild(ta);
+        ta.select();
+        try {
+          if (!document.execCommand("copy")) reject(new Error("copy"));
+          else resolve();
+        } catch (err) {
+          reject(err);
+        } finally {
+          document.body.removeChild(ta);
+        }
+      });
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      return Promise.race([
+        navigator.clipboard.writeText(text),
+        new Promise((_, reject) => {
+          setTimeout(() => reject(new Error("clipboard-timeout")), 400);
+        }),
+      ]).catch(() => fallback());
+    }
+    return fallback();
   }
 
   function showBanner(text, kind) {
@@ -228,7 +278,7 @@
   function applyThread(result) {
     const thread = result && result.thread;
     if (!thread) return;
-    threadId = thread.id;
+    showThreadId(thread.id);
     threadPreview = thread.preview || thread.id;
     const cwd = thread.cwd || "工作区";
     titleEl.textContent = threadPreview;
@@ -251,7 +301,7 @@
       case "thread/started": {
         const thread = msg.params && msg.params.thread;
         if (!thread) return;
-        threadId = thread.id;
+        showThreadId(thread.id);
         threadPreview = thread.preview || thread.id;
         titleEl.textContent = threadPreview;
         metaEl.textContent = thread.cwd || "工作区";
@@ -333,7 +383,7 @@
   async function startThread() {
     showBanner("");
     clearLog();
-    threadId = null;
+    showThreadId(null);
     titleEl.textContent = "新对话";
     const result = await rpc("thread/start", {});
     applyThread(result);
@@ -364,6 +414,7 @@
 
   function connect() {
     titleEl.textContent = "未打开对话";
+    showThreadId(null);
     metaEl.textContent = "正在连接…";
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -429,6 +480,27 @@
 
   toggleRailEl.addEventListener("click", () => {
     railEl.classList.toggle("open");
+  });
+
+  copyThreadIdEl.addEventListener("click", () => {
+    if (!threadId) return;
+    copyText(threadId)
+      .then(() => {
+        copyThreadIdEl.textContent = "已复制";
+        setTimeout(() => {
+          if (copyThreadIdEl.textContent === "已复制") {
+            copyThreadIdEl.textContent = "复制 id";
+          }
+        }, 1200);
+      })
+      .catch(() => {
+        copyThreadIdEl.textContent = "复制失败";
+        setTimeout(() => {
+          if (copyThreadIdEl.textContent === "复制失败") {
+            copyThreadIdEl.textContent = "复制 id";
+          }
+        }, 1200);
+      });
   });
 
   connect();

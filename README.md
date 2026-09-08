@@ -54,7 +54,7 @@ crate / 二进制全部是 `theseus-*`。`PI_*` 与 `~/.pi-app` 仅作**已弃�
 | --- | --- | --- |
 | 1 | `THESEUS_SESSIONS_DIR` | `{THESEUS_SESSIONS_DIR}/{thread_id}.jsonl` |
 | 2 | `THESEUS_HOME` | `{THESEUS_HOME}/sessions/{thread_id}.jsonl` |
-| 3 | （默认） | `~/.theseus/sessions/{thread_id}.jsonl` |
+| 3 | （默认） | `~/.theseus/sessions/{thread_id}.jsonl`（Windows：`%USERPROFILE%\.theseus\sessions`，经 `USERPROFILE` / `dirs::home`，**不会**因未设 Unix `HOME` 落到 `/tmp/theseus/sessions`） |
 
 **已弃用**的短读兼容：未设 `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` 时仍读 `PI_SESSIONS_DIR` / `PI_HOME`。默认目录若 `~/.theseus/sessions` 不存在而 `~/.pi-app/sessions` 存在，则沿用后者。新安装只走 `~/.theseus/sessions`。
 
@@ -270,17 +270,17 @@ cargo build -p theseus-app-server
 cargo run -p theseus-desktop --features gui
 ```
 
-已安装：双击 `Theseus.app` / 开始菜单 **Theseus** / 便携目录里的 `theseus-desktop`。窗口应直接起来。Finder 不读 `.zshrc`，双击前请把 key 写进**用户环境变量**（见下）。
+已安装：双击 `Theseus.app` / 开始菜单 **Theseus** / 便携目录里的 `theseus-desktop`。窗口应直接起来，**不**弹黑控制台 / 额外 Terminal；Release GUI 默认不往 stdout 打 `UI on http://…` 之类的桥接日志。Finder 不读 `.zshrc`，双击前请把 key 写进**用户环境变量**（见下）。
 
 在打开的窗口里验收：
 
-1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是浅底。
+1. 点左栏 **新对话**（对照 dsh `SidebarRoot` 的 New Session 条）。左栏「最近」应出现一行，选中态是暗蓝底。顶栏显示当前 **thread id**，可点 **复制 id**（只复制协议里的 id，没有分享短链）。
 2. **流式**：发 `只回复：ping`。主列出现「回合」标记、你的气泡、流式助手。
 3. **拒绝一次**：再发「用 write 在工作区写 `scratch.txt`，内容 `no`」。输入条被一张门闩卡顶掉（琥珀条 + 工具名 + 摘要）。点 **拒绝**。应出现工具失败行，文件不应存在。
 4. **批准一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」。同一张卡点 **批准**。工作区里有 `hello.txt`。
 5. **resume**：左栏预览应更新；点另一行再点回来，历史还在（`thread/resume`）。
 
-无密钥时第 2 步会出一条可读错误条（「模型密钥没有传到 sidecar…」），log 不写 turn。
+无密钥时第 2 步会出一条短条（「未配置 THESEUS_LLM_API_KEY」），log 不写 turn。
 
 开发脚手架（需 `cargo install tauri-cli --version "^2.2"`，无需 npm）：`cd crates/theseus-desktop && cargo tauri dev --features gui`。
 
@@ -289,9 +289,9 @@ cargo run -p theseus-desktop --features gui
 推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.0**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.6.0_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.0_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.6.0_x64-setup.exe`（当前用户 NSIS）
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.6.1**，不一定等于 git 标签）：
+   - macOS：`Theseus_0.6.1_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.6.1_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
+   - Windows：`Theseus_0.6.1_x64-setup.exe`（当前用户 NSIS）
 3. **未签名**：
    - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
    - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
@@ -311,8 +311,8 @@ python3 packaging/build-desktop.py
 | 产物 | 路径（相对仓库根） |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.0_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.0_*-setup.exe` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.6.1_*.dmg` |
+| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.6.1_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
 
 包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
@@ -323,7 +323,7 @@ python3 packaging/build-desktop.py
 | --- | --- |
 | `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
 | `THESEUS_TOOL_APPROVAL` | 默认 `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
-| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
+| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
 | `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
 **Windows**：设置 → 系统 → 关于 → 高级系统设置 → 环境变量 → **用户变量** 新建 `THESEUS_LLM_API_KEY` → 完全退出 Theseus 再开（必要时注销，让 Explorer 重新继承）。

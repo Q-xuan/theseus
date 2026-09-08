@@ -6,10 +6,10 @@ Theseus 核冻结。这一刀只解决 **装得上、每天点得开**。不改 
 
 推送已存在的 `v*` 标签（或在 Actions 里对**已有**标签 `workflow_dispatch`）后，[`.github/workflows/release-desktop.yml`](../.github/workflows/release-desktop.yml) 在 **macos-latest** / **windows-latest** 本机 runner 上跑下面同一条 `python3 packaging/build-desktop.py`，把产物挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。**不会**自动创建或推送标签。
 
-| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.6.0） |
+| 平台 | Release 上的文件（当前 `tauri.conf.json` version = 0.6.1） |
 | --- | --- |
-| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.6.0_aarch64.dmg`；另附 `Theseus_0.6.0_aarch64.app.zip`（解压得 `Theseus.app`） |
-| Windows（`windows-latest` ≈ x64） | `Theseus_0.6.0_x64-setup.exe`（当前用户 NSIS） |
+| macOS（`macos-latest` ≈ Apple Silicon） | `Theseus_0.6.1_aarch64.dmg`；另附 `Theseus_0.6.1_aarch64.app.zip`（解压得 `Theseus.app`） |
+| Windows（`windows-latest` ≈ x64） | `Theseus_0.6.1_x64-setup.exe`（当前用户 NSIS） |
 | 便携 zip | 默认 `build-desktop.py` **不**打便携目录；本机 `python3 packaging/build-desktop.py --portable` 才有。CI 若看到 `dist/theseus-portable-*` 会顺带打成 zip |
 
 **未签名。** 无 Apple 公证 / Developer ID，无 Windows Authenticode，无 Tauri updater。
@@ -59,8 +59,8 @@ python3 packaging/build-desktop.py --portable
 | 平台 | 产物 | 路径 |
 | --- | --- | --- |
 | macOS | 可双击的 `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.6.0_*.dmg` |
-| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.6.0_*-setup.exe` |
+| macOS | 拖进「应用程序」的 DMG | `target/release/bundle/dmg/Theseus_0.6.1_*.dmg` |
+| Windows | 当前用户 NSIS 安装器（**未签名**） | `target/release/bundle/nsis/Theseus_0.6.1_*-setup.exe` |
 | 任一 | 便携目录 | `dist/theseus-portable-<triple>/` |
 
 `.app` 里 sidecar 在 `Contents/MacOS/theseus-app-server`（与 `Theseus` 同级）。NSIS / 便携则是 `theseus-app-server.exe` 紧挨主程序。`locate` 先看 `THESEUS_APP_SERVER_BIN`，再看可执行文件旁边，最后才是源码树的 `target/`。
@@ -69,7 +69,7 @@ python3 packaging/build-desktop.py --portable
 
 ## 安装之后怎么用
 
-1. 双击 `Theseus.app` / 开始菜单里的 **Theseus** / 便携目录里的 `theseus-desktop`。应出窗口，**没有**密钥框。
+1. 双击 `Theseus.app` / 开始菜单里的 **Theseus** / 便携目录里的 `theseus-desktop`。应出窗口，**没有**密钥框，**没有**黑控制台 / 额外 Terminal。Release GUI 默认不往 stdout 打桥接地址。
 2. 密钥只从 **用户或系统环境变量**（或从终端拉起时的父进程）传给 sidecar。
 3. 关窗必须带走 `theseus-app-server`（活动监视器 / 任务管理器里不应留下孤儿）。
 
@@ -80,7 +80,7 @@ python3 packaging/build-desktop.py --portable
 | `THESEUS_LLM_API_KEY` | sidecar（`theseus-llm`） | 空 → `turn/start` RPC 错，不写 turn。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
 | `THESEUS_LLM_BASE_URL` / `THESEUS_LLM_MODEL` | sidecar | 见主 README。`PI_LLM_*` **已弃用**，仅短读兼容 |
 | `THESEUS_TOOL_APPROVAL` | sidecar | `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
-| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | sidecar | `~/.theseus/sessions`。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
+| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | sidecar | `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`，不因未设 `HOME` 落到 `/tmp/theseus/sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
 | `THESEUS_APP_SERVER_BIN` | 壳（调试用） | 包内嵌的 sidecar。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
 
 不要把 key 写进仓库、命令行、WebView、plist 里的明文配置页（本项目没有设置页）。
@@ -119,7 +119,7 @@ export THESEUS_LLM_API_KEY='...'
 4. **批一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」→ **批准**。工作区有文件。
 5. **resume**：点另一行再点回来，历史还在。
 
-无 key 时第 2 步是一条可读错误（「模型密钥没有传到 sidecar…」），jsonl 不写 turn。
+无 key 时第 2 步是一条短条（「未配置 THESEUS_LLM_API_KEY」），jsonl 不写 turn。
 
 ## 维护者：怎么发一版
 

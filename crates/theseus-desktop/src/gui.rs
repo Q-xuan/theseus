@@ -12,16 +12,18 @@ pub fn run_gui() {
             std::process::exit(1);
         }
     };
-    eprintln!("theseus-desktop sidecar: {}", sidecar.path().display());
-    eprintln!(
-        "sessions: {}",
-        theseus_core::default_sessions_dir().display()
-    );
-    if !key_is_set() {
+    if crate::verbose_stdio() {
+        eprintln!("theseus-desktop sidecar: {}", sidecar.path().display());
         eprintln!(
-            "{ENV_API_KEY} is not set on this process; the sidecar inherits that. \
-             turn/start will error until you export it and restart. The key is never shown in the UI."
+            "sessions: {}",
+            theseus_core::default_sessions_dir().display()
         );
+        if !key_is_set() {
+            eprintln!(
+                "{ENV_API_KEY} is not set on this process; the sidecar inherits that. \
+                 turn/start will error until you export it and restart. The key is never shown in the UI."
+            );
+        }
     }
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
@@ -33,7 +35,9 @@ pub fn run_gui() {
         .expect("bind loopback");
     let addr = listener.local_addr().expect("local_addr");
     let url = format!("http://{addr}/");
-    eprintln!("theseus-desktop UI on {url} (127.0.0.1 only; stdio↔WS bridge is transitional)");
+    if crate::verbose_stdio() {
+        eprintln!("theseus-desktop UI on {url} (127.0.0.1 only; stdio↔WS bridge is transitional)");
+    }
 
     let serve_sidecar = sidecar.clone();
     std::thread::Builder::new()
