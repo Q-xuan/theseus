@@ -1,5 +1,7 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{Duration, Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Deserialize;
@@ -113,6 +115,7 @@ pub struct AppServer {
     approval: ApprovalMode,
     approval_timeout: Duration,
     pending: Option<PendingApproval>,
+    cancel: Arc<AtomicBool>,
 }
 
 impl Default for AppServer {
@@ -123,7 +126,13 @@ impl Default for AppServer {
 
 impl AppServer {
     pub fn new() -> Self {
-        Self::with_llm(OpenAiChatSeam::from_env())
+        let cancel = Arc::new(AtomicBool::new(false));
+        Self::with_seams(
+            OpenAiChatSeam::from_env().with_cancel(cancel.clone()),
+            LocalToolSeam,
+            DEFAULT_MAX_STEPS_PER_TURN,
+        )
+        .with_cancel(cancel)
     }
 
     pub fn with_llm(llm: impl LlmSeam + 'static) -> Self {
@@ -146,7 +155,18 @@ impl AppServer {
             approval: ApprovalMode::from_env(),
             approval_timeout: timeout_from_env(),
             pending: None,
+            cancel: Arc::new(AtomicBool::new(false)),
         }
+    }
+
+    pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = cancel;
+        self
+    }
+
+    /// Shared stop flag. Stdio peeks `turn/interrupt` and sets this while a turn is in flight.
+    pub fn cancel_flag(&self) -> Arc<AtomicBool> {
+        self.cancel.clone()
     }
 
     /// Override the JSONL directory (`{dir}/{thread_id}.jsonl`). Shared by stdio and `theseus-web`.
@@ -280,6 +300,14 @@ impl AppServer {
                     push_error(&mut out, id, JsonRpcError::not_initialized());
                 } else {
                     self.tool_decide(&mut out, id, &req.params, ApprovalDecision::Reject);
+                }
+                false
+            }
+            "turn/interrupt" => {
+                if !self.initialized {
+                    push_error(&mut out, id, JsonRpcError::not_initialized());
+                } else {
+                    self.turn_interrupt(&mut out, id, &req.params);
                 }
                 false
             }
@@ -616,6 +644,8 @@ impl AppServer {
             return;
         }
 
+        self.cancel.store(false, Ordering::SeqCst);
+
         let prepared = match prepare_turn(self.threads.get_mut(&thread_id).unwrap(), out, id, &text)
         {
             Some(p) => p,
@@ -623,6 +653,53 @@ impl AppServer {
         };
 
         self.run_agent_loop(out, &thread_id, &prepared, &text);
+    }
+
+    fn turn_interrupt(&mut self, out: &mut Out<'_>, id: JsonRpcId, params: &Value) {
+        self.cancel.store(true, Ordering::SeqCst);
+        if let Some(pending) = self.pending.clone() {
+            let thread_id = params
+                .get("threadId")
+                .and_then(|v| v.as_str())
+                .unwrap_or(pending.thread_id.as_str());
+            if thread_id != pending.thread_id {
+                push_error(
+                    out,
+                    id,
+                    JsonRpcError::application(format!(
+                        "pending approval is for thread {}",
+                        pending.thread_id
+                    )),
+                );
+                return;
+            }
+            let prepared = PreparedTurn {
+                turn_id: pending.turn_id.clone(),
+                turn_number: pending.turn_number,
+            };
+            self.pending = None;
+            out.push(notify(
+                "item/tool/approval/resolved",
+                json!({
+                    "threadId": pending.thread_id,
+                    "callId": pending.call_id,
+                    "decision": "stopped",
+                }),
+            ));
+            if let Some(state) = self.threads.get_mut(&pending.thread_id) {
+                close_turn(
+                    state,
+                    out,
+                    &prepared.turn_id,
+                    prepared.turn_number,
+                    TurnEndReason::Interrupted,
+                );
+            }
+        }
+        out.push(Outgoing::Response(JsonRpcResponse::ok(
+            id,
+            json!({ "ok": true }),
+        )));
     }
 
     fn run_agent_loop(
@@ -633,6 +710,18 @@ impl AppServer {
         user_text: &str,
     ) {
         loop {
+            if self.cancel.load(Ordering::SeqCst) {
+                if let Some(state) = self.threads.get_mut(thread_id) {
+                    close_turn(
+                        state,
+                        out,
+                        &prepared.turn_id,
+                        prepared.turn_number,
+                        TurnEndReason::Interrupted,
+                    );
+                }
+                return;
+            }
             let (request, assistant_id, workspace) = {
                 let Some(state) = self.threads.get_mut(thread_id) else {
                     return;
@@ -667,6 +756,16 @@ impl AppServer {
 
             let outcome = match stream_result {
                 Ok(o) => o,
+                Err(LlmError::Interrupted) => {
+                    close_turn(
+                        state,
+                        out,
+                        &prepared.turn_id,
+                        prepared.turn_number,
+                        TurnEndReason::Interrupted,
+                    );
+                    return;
+                }
                 Err(err) => {
                     close_failed_turn(state, out, &prepared.turn_id, prepared.turn_number, err);
                     return;
@@ -1363,20 +1462,24 @@ fn close_turn(
             push_session_event(out, &ev);
         }
     }
+    let status = match &reason {
+        TurnEndReason::Interrupted => TurnStatus::Interrupted,
+        _ => TurnStatus::Failed,
+    };
     if state.session.open_turn().is_some() {
         if let Ok(ev) = state.session.end_turn(reason) {
             push_session_event(out, &ev);
         }
     }
-    let failed = Turn {
+    let ended = Turn {
         id: turn_id.to_string(),
-        status: TurnStatus::Failed,
+        status,
         items: state.session.project_items_for_turn(turn_number),
     };
     state.thread.status = ThreadStatus::Idle;
     state.thread.updated_at = now_ms() / 1000;
-    state.thread.turns.push(failed.clone());
-    out.push(notify("turn/completed", json!({ "turn": failed })));
+    state.thread.turns.push(ended.clone());
+    out.push(notify("turn/completed", json!({ "turn": ended })));
 }
 
 #[derive(Debug, Deserialize)]
@@ -1627,7 +1730,8 @@ fn now_ms() -> i64 {
 mod tests {
     use super::*;
     use std::fs;
-    use std::sync::atomic::{AtomicU64, Ordering};
+    use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
+    use std::sync::Arc;
     use theseus_llm::{LlmError, ScriptedRound, ScriptedSeam, ToolCallRequest};
     use theseus_protocol::{DerivedMessage, ThreadItem};
 
@@ -2763,6 +2867,125 @@ mod tests {
         let (is_error, content) = last_tool_result(&server, &thread_id).unwrap();
         assert!(!is_error, "{content}");
         assert!(content.contains("hello"), "{content}");
+        let _ = fs::remove_dir_all(dir);
+    }
+
+    struct HoldUntilCancel {
+        cancel: Arc<AtomicBool>,
+    }
+
+    impl LlmSeam for HoldUntilCancel {
+        fn ready(&self) -> Result<(), LlmError> {
+            Ok(())
+        }
+
+        fn stream_chat(
+            &self,
+            _request: &ChatRequest,
+            _on_delta: &mut dyn FnMut(&str),
+        ) -> Result<theseus_llm::ChatOutcome, LlmError> {
+            for _ in 0..200 {
+                if self.cancel.load(Ordering::SeqCst) {
+                    return Err(LlmError::Interrupted);
+                }
+                std::thread::sleep(Duration::from_millis(5));
+            }
+            Err(LlmError::Transport("test timeout waiting for cancel".into()))
+        }
+    }
+
+    #[test]
+    fn turn_interrupt_while_streaming_closes_with_interrupted() {
+        let cancel = Arc::new(AtomicBool::new(false));
+        let mut server = AppServer::with_llm(HoldUntilCancel {
+            cancel: cancel.clone(),
+        })
+        .with_cancel(cancel.clone())
+        .with_sessions_dir(temp_sessions())
+        .with_approval(ApprovalMode::Auto, Duration::from_secs(60));
+        let thread_id = start_thread(&mut server);
+        let flag = cancel.clone();
+        std::thread::spawn(move || {
+            std::thread::sleep(Duration::from_millis(20));
+            flag.store(true, Ordering::SeqCst);
+        });
+        let turn = server.handle_request(req(
+            2,
+            "turn/start",
+            json!({
+                "threadId": thread_id,
+                "input": [{ "type": "text", "text": "go" }]
+            }),
+        ));
+        assert!(session_event_types(&turn).contains(&"turn/start".to_string()));
+        assert!(session_event_types(&turn).contains(&"turn/end".to_string()));
+        assert!(!session_event_types(&turn).contains(&"assistant/message".to_string()));
+        let end = turn.outgoing.iter().find_map(|o| match o {
+            Outgoing::Notification(n) if n.method == "session/event" => {
+                if n.params["event"]["type"] == "turn/end" {
+                    Some(n.params["event"]["data"]["reason"]["kind"].as_str()?.to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
+        assert_eq!(end.as_deref(), Some("interrupted"));
+        let completed = notify_named(&turn, "turn/completed");
+        assert_eq!(completed[0].params["turn"]["status"], "interrupted");
+        assert!(!server.turn_is_open(&thread_id));
+        for ev in server.events(&thread_id) {
+            assert!(
+                theseus_protocol::HISTORY_EVENT_TYPES.contains(&ev.type_name()),
+                "{}",
+                ev.type_name()
+            );
+        }
+    }
+
+    #[test]
+    fn turn_interrupt_while_parked_closes_without_running_tool() {
+        let dir = temp_workspace("gate-stop");
+        let target = dir.join("out.txt");
+        let mut server =
+            approve_server(write_then_text("out.txt", "nope"), Duration::from_secs(60));
+        let thread_id = start_thread_with(
+            &mut server,
+            json!({ "model": "gpt-4o-mini", "cwd": dir.to_string_lossy() }),
+        );
+        server.handle_request(req(
+            2,
+            "turn/start",
+            json!({
+                "threadId": thread_id,
+                "input": [{ "type": "text", "text": "write it" }]
+            }),
+        ));
+        assert!(server.turn_is_open(&thread_id));
+        let stopped = server.handle_request(req(
+            3,
+            "turn/interrupt",
+            json!({ "threadId": thread_id }),
+        ));
+        assert!(!target.exists());
+        assert_eq!(
+            notify_named(&stopped, "item/tool/approval/resolved")[0].params["decision"],
+            "stopped"
+        );
+        assert!(session_event_types(&stopped).contains(&"turn/end".to_string()));
+        assert!(!session_event_types(&stopped).contains(&"tool/result".to_string()));
+        assert!(!server.turn_is_open(&thread_id));
+        let end = stopped.outgoing.iter().find_map(|o| match o {
+            Outgoing::Notification(n) if n.method == "session/event" => {
+                if n.params["event"]["type"] == "turn/end" {
+                    Some(n.params["event"]["data"]["reason"]["kind"].as_str()?.to_string())
+                } else {
+                    None
+                }
+            }
+            _ => None,
+        });
+        assert_eq!(end.as_deref(), Some("interrupted"));
         let _ = fs::remove_dir_all(dir);
     }
 }

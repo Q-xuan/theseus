@@ -19,11 +19,6 @@ const CONFIG_DIR_NAME: &str = ".theseus";
 const MODEL_FILE_NAME: &str = "model";
 const MAX_MODEL_CHARS: usize = 128;
 
-#[cfg(test)]
-use std::sync::Mutex;
-
-#[cfg(test)]
-static ENV_LOCK: Mutex<()> = Mutex::new(());
 
 fn first_nonempty_env(names: &[&str]) -> Option<String> {
     theseus_core::first_nonempty_env(names).map(|s| s.trim().to_string())
@@ -90,7 +85,7 @@ mod tests {
     use std::sync::MutexGuard;
 
     fn lock_env() -> MutexGuard<'static, ()> {
-        ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
+        crate::TEST_ENV_LOCK.lock().unwrap_or_else(|e| e.into_inner())
     }
 
     fn with_temp_home<F: FnOnce(&std::path::Path)>(f: F) {

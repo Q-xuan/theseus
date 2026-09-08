@@ -7,7 +7,8 @@
   Codex Desktop product feel (density / dark only): charcoal rail, near-black
   main, muted-blue selected row, user bubble, allow/deny on the dock.
   Composer model strip + left turn ticks: feel only (no Codex product chrome).
-  Feel only: no extra nav, settings wall, or key box.
+  One prefs card (gear), not a settings wall. Optional key paste writes
+  to the OS user environment / keychain only — never jsonl.
 */
 
 :root {
@@ -261,7 +262,10 @@ body {
 .composer.hidden,
 .tool-body.hidden,
 .thread-id.hidden,
-.model-pop.hidden {
+.model-pop.hidden,
+.prefs-mask.hidden,
+.stop.hidden,
+#send.hidden {
   display: none;
 }
 
@@ -488,9 +492,133 @@ body {
   gap: 6px;
 }
 
+.workspace-chip {
+  flex: none;
+  max-width: 14em;
+  color: var(--muted);
+  font-size: 11px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.gear {
+  flex: none;
+  padding: 2px 7px;
+  line-height: 1.2;
+}
+
+.prefs-mask {
+  position: fixed;
+  inset: 0;
+  z-index: 8;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
+  padding: 48px 16px 16px;
+  background: rgb(0 0 0 / 45%);
+}
+
+.prefs {
+  width: min(420px, 100%);
+  padding: 12px 14px 14px;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #161616;
+  box-shadow: var(--elev);
+}
+
+.prefs-head {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+}
+
+.prefs-title {
+  flex: 1;
+  font-weight: 620;
+}
+
+.prefs-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin: 0 0 10px;
+  font-size: 12px;
+  color: var(--muted);
+}
+
+.prefs-field input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #111;
+  color: var(--text);
+  font: inherit;
+  padding: 5px 7px;
+}
+
+.prefs-field input:focus {
+  outline: none;
+  border-color: #4a4a4a;
+}
+
+.prefs-row {
+  display: flex;
+  gap: 6px;
+}
+
+.prefs-row input {
+  flex: 1;
+}
+
+.prefs-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+.prefs-preset {
+  appearance: none;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: var(--ghost-bg);
+  color: var(--text);
+  font: inherit;
+  padding: 3px 7px;
+  cursor: pointer;
+}
+
+.prefs-preset:hover {
+  background: var(--hover);
+}
+
+.prefs-key-status {
+  color: var(--text);
+  font-size: 12px;
+}
+
+.prefs-actions {
+  display: flex;
+  justify-content: flex-end;
+}
+
+#prefs-save {
+  appearance: none;
+  border: 0;
+  border-radius: 6px;
+  padding: 5px 12px;
+  font: inherit;
+  cursor: pointer;
+  background: var(--btn);
+  color: var(--btn-text);
+}
+
 .ghost,
 #approval-approve,
-#send {
+#send,
+#stop {
   appearance: none;
   border-radius: 6px;
   padding: 5px 10px;
@@ -505,14 +633,21 @@ body {
 }
 
 #approval-approve,
-#send {
+#send,
+#stop {
   border: 0;
   background: var(--btn);
   color: var(--btn-text);
 }
 
+#stop {
+  background: var(--err);
+  color: var(--err-text);
+}
+
 .new-chat:disabled,
 #send:disabled,
+#stop:disabled,
 #approval-approve:disabled,
 #approval-reject:disabled {
   opacity: 0.4;
@@ -661,7 +796,8 @@ body {
   background: var(--hover);
 }
 
-.composer-strip #send {
+.composer-strip #send,
+.composer-strip #stop {
   margin-left: auto;
 }
 

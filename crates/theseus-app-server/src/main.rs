@@ -1,5 +1,8 @@
 use std::env;
 use std::io::{self, BufRead, Write};
+use std::sync::atomic::Ordering;
+use std::sync::mpsc;
+use std::thread;
 
 use theseus_app_server::AppServer;
 use theseus_core::{default_sessions_dir, ENV_HOME, ENV_SESSIONS_DIR};
@@ -45,22 +48,41 @@ Session JSONL: ${ENV_SESSIONS_DIR}/<thread_id>.jsonl, or ${ENV_HOME}/sessions/, 
     );
 }
 
+fn line_is_interrupt(line: &str) -> bool {
+    match serde_json::from_str::<serde_json::Value>(line) {
+        Ok(v) => v.get("method").and_then(|m| m.as_str()) == Some("turn/interrupt"),
+        Err(_) => false,
+    }
+}
+
 fn run_stdio() {
     eprintln!(
         "theseus-app-server sessions: {}",
         default_sessions_dir().display()
     );
     let mut server = AppServer::new();
-    let stdin = io::stdin();
-    let mut stdout = io::stdout();
-    for line in stdin.lock().lines() {
-        let line = match line {
-            Ok(l) => l,
-            Err(err) => {
-                eprintln!("stdin error: {err}");
-                break;
+    let cancel = server.cancel_flag();
+    let (tx, rx) = mpsc::channel::<String>();
+    thread::Builder::new()
+        .name("theseus-stdin".into())
+        .spawn(move || {
+            let stdin = io::stdin();
+            for line in stdin.lock().lines() {
+                let line = match line {
+                    Ok(l) => l,
+                    Err(_) => break,
+                };
+                if line_is_interrupt(&line) {
+                    cancel.store(true, Ordering::SeqCst);
+                }
+                if tx.send(line).is_err() {
+                    break;
+                }
             }
-        };
+        })
+        .expect("stdin thread");
+    let mut stdout = io::stdout();
+    for line in rx {
         let result = server.handle_line_sink(&line, &mut |msg| {
             let _ = writeln!(stdout, "{}", msg.to_line());
             let _ = stdout.flush();

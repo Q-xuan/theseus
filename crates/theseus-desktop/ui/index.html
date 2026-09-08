@@ -27,8 +27,45 @@
             </button>
           </div>
           <div id="meta" class="meta">未连接</div>
+          <div id="workspace-chip" class="workspace-chip" title="">工作区</div>
           <div id="run-state" class="run-state hidden">进行中</div>
+          <button type="button" id="open-prefs" class="ghost gear" aria-label="打开设置" title="设置">⚙</button>
         </header>
+        <div id="prefs-mask" class="prefs-mask hidden">
+          <div id="prefs" class="prefs" role="dialog" aria-label="设置" aria-modal="true">
+            <div class="prefs-head">
+              <div class="prefs-title">设置</div>
+              <button type="button" id="close-prefs" class="ghost" aria-label="关闭设置">关闭</button>
+            </div>
+            <label class="prefs-field">
+              <span>接口地址</span>
+              <input id="prefs-base-url" type="text" autocomplete="off" spellcheck="false" placeholder="https://…" />
+            </label>
+            <div class="prefs-field">
+              <span>模型</span>
+              <input id="prefs-model" type="text" autocomplete="off" spellcheck="false" placeholder="模型名" />
+              <div class="prefs-presets">
+                <button type="button" class="prefs-preset" data-model="gpt-4o-mini">gpt-4o-mini</button>
+                <button type="button" class="prefs-preset" data-model="gpt-4o">gpt-4o</button>
+              </div>
+            </div>
+            <label class="prefs-field">
+              <span>工作区</span>
+              <div class="prefs-row">
+                <input id="prefs-workspace" type="text" autocomplete="off" spellcheck="false" placeholder="目录路径" />
+                <button type="button" id="prefs-pick-workspace" class="ghost">选择…</button>
+              </div>
+            </label>
+            <div class="prefs-field">
+              <span>密钥</span>
+              <div id="prefs-key-status" class="prefs-key-status">未配置</div>
+              <input id="prefs-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴后只写入本机用户环境 / 钥匙串" />
+            </div>
+            <div class="prefs-actions">
+              <button type="button" id="prefs-save">保存</button>
+            </div>
+          </div>
+        </div>
         <div id="banner" class="banner hidden" role="status"></div>
         <div class="thread-col">
           <nav id="timeline" class="timeline" aria-label="回合时间线"></nav>
@@ -75,6 +112,7 @@
                   <button type="button" class="model-choice" data-model="gpt-4o">gpt-4o</button>
                 </div>
               </div>
+              <button type="button" id="stop" class="stop hidden">停止</button>
               <button type="submit" id="send" disabled>发送</button>
             </div>
           </form>

@@ -31,6 +31,18 @@
   const modelPopEl = $("model-pop");
   const modelInputEl = $("model-input");
   const modelBusyEl = $("model-busy");
+  const stopEl = $("stop");
+  const openPrefsEl = $("open-prefs");
+  const closePrefsEl = $("close-prefs");
+  const prefsMaskEl = $("prefs-mask");
+  const prefsBaseEl = $("prefs-base-url");
+  const prefsModelEl = $("prefs-model");
+  const prefsWorkspaceEl = $("prefs-workspace");
+  const prefsPickEl = $("prefs-pick-workspace");
+  const prefsKeyEl = $("prefs-key");
+  const prefsKeyStatusEl = $("prefs-key-status");
+  const prefsSaveEl = $("prefs-save");
+  const workspaceChipEl = $("workspace-chip");
 
   let ws = null;
   let nextId = 1;
@@ -43,6 +55,8 @@
   let recent = [];
   let turnCount = 0;
   let currentModel = "";
+  let currentWorkspace = "";
+  let keyConfigured = false;
   let activeTurn = 0;
 
   function readableError(err) {
@@ -117,11 +131,23 @@
     busy = on;
     runEl.classList.toggle("hidden", !on);
     modelBusyEl.classList.toggle("on", on);
+    sendEl.classList.toggle("hidden", on);
+    stopEl.classList.toggle("hidden", !on);
     const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy && !approval);
     inputEl.disabled = !ready;
     sendEl.disabled = !ready;
+    stopEl.disabled = !on;
     const connected = Boolean(ws && ws.readyState === 1 && !busy);
     newEl.disabled = !connected;
+  }
+
+  function renderWorkspace(path) {
+    currentWorkspace = path || currentWorkspace || "";
+    workspaceChipEl.textContent = currentWorkspace ? currentWorkspace : "工作区";
+    workspaceChipEl.title = currentWorkspace;
+    if (prefsWorkspaceEl && document.activeElement !== prefsWorkspaceEl) {
+      prefsWorkspaceEl.value = currentWorkspace;
+    }
   }
 
   function splitModelLabel(name) {
@@ -152,15 +178,64 @@
     modelInputEl.select();
   }
 
-  async function loadModel() {
-    try {
-      const res = await fetch("/model");
-      const data = await res.json();
-      currentModel = (data && data.model) || "";
-    } catch {
-      currentModel = currentModel || "";
+  function applySettingsPayload(data) {
+    if (data && data.model) currentModel = data.model;
+    if (data && data.workspace) renderWorkspace(data.workspace);
+    if (data && typeof data.keyConfigured === "boolean") keyConfigured = data.keyConfigured;
+    if (data && data.baseUrl && prefsBaseEl) prefsBaseEl.value = data.baseUrl;
+    if (prefsModelEl) prefsModelEl.value = currentModel;
+    if (prefsKeyStatusEl) {
+      prefsKeyStatusEl.textContent = keyConfigured ? "已配置" : "未配置";
     }
     renderModel();
+  }
+
+  async function loadModel() {
+    try {
+      const res = await fetch("/settings");
+      const data = await res.json();
+      applySettingsPayload(data);
+    } catch {
+      currentModel = currentModel || "";
+      renderModel();
+    }
+  }
+
+  function openPrefs() {
+    prefsMaskEl.classList.remove("hidden");
+    prefsModelEl.value = currentModel;
+    prefsWorkspaceEl.value = currentWorkspace;
+    prefsKeyEl.value = "";
+    prefsKeyStatusEl.textContent = keyConfigured ? "已配置" : "未配置";
+    prefsBaseEl.focus();
+  }
+
+  function closePrefs() {
+    prefsMaskEl.classList.add("hidden");
+    prefsKeyEl.value = "";
+  }
+
+  async function savePrefs() {
+    const payload = {
+      baseUrl: prefsBaseEl.value.trim(),
+      model: prefsModelEl.value.trim(),
+      workspace: prefsWorkspaceEl.value.trim(),
+    };
+    const pasted = prefsKeyEl.value.trim();
+    if (pasted) payload.key = pasted;
+    prefsKeyEl.value = "";
+    try {
+      const res = await fetch("/settings", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+      const data = await res.json();
+      applySettingsPayload(data);
+      closePrefs();
+    } catch {
+      showBanner("设置没存上。");
+    }
   }
 
   async function saveModel(raw) {
@@ -342,6 +417,7 @@
     const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy);
     inputEl.disabled = !ready;
     sendEl.disabled = !ready;
+    stopEl.disabled = !busy;
   }
 
   function showApproval(params) {
@@ -401,9 +477,10 @@
     if (!thread) return;
     showThreadId(thread.id);
     threadPreview = thread.preview || thread.id;
-    const cwd = thread.cwd || "工作区";
+    const cwd = thread.cwd || currentWorkspace || "工作区";
     titleEl.textContent = threadPreview;
     metaEl.textContent = cwd;
+    renderWorkspace(thread.cwd || currentWorkspace);
     clearLog();
     for (const turn of thread.turns || []) {
       turnCount += 1;
@@ -425,7 +502,8 @@
         showThreadId(thread.id);
         threadPreview = thread.preview || thread.id;
         titleEl.textContent = threadPreview;
-        metaEl.textContent = thread.cwd || "工作区";
+        metaEl.textContent = thread.cwd || currentWorkspace || "工作区";
+        if (thread.cwd) renderWorkspace(thread.cwd);
         break;
       }
       case "turn/started": {
@@ -467,8 +545,8 @@
         const turn = msg.params && msg.params.turn;
         if (turn && turn.status === "failed") {
           showBanner("这一轮失败了。服务端已经收口，没有半截助手消息。");
-        } else if (turn && turn.status === "aborted") {
-          showBanner("这一轮中止了。", "warn");
+        } else if (turn && (turn.status === "aborted" || turn.status === "interrupted")) {
+          showBanner("这一轮已停止。", "warn");
         }
         hideApproval();
         setBusy(false);
@@ -506,7 +584,9 @@
     clearLog();
     showThreadId(null);
     titleEl.textContent = "新对话";
-    const params = currentModel ? { model: currentModel } : {};
+    const params = {};
+    if (currentModel) params.model = currentModel;
+    if (currentWorkspace) params.cwd = currentWorkspace;
     const result = await rpc("thread/start", params);
     applyThread(result);
     await loadRecent();
@@ -530,6 +610,16 @@
       });
     } catch (err) {
       showBanner(readableError(err), /API_KEY|is not set/i.test((err && err.message) || "") ? "warn" : undefined);
+      setBusy(false);
+    }
+  }
+
+  async function stopTurn() {
+    if (!threadId || !busy) return;
+    try {
+      await rpc("turn/interrupt", { threadId });
+    } catch (err) {
+      showBanner(readableError(err));
       setBusy(false);
     }
   }
@@ -567,6 +657,7 @@
       setBusy(true);
       inputEl.disabled = true;
       sendEl.disabled = true;
+      stopEl.disabled = true;
       newEl.disabled = true;
       showBanner("和 sidecar 的连接断了。关掉窗口再开（Linux 预览则刷新页面）。");
     };
@@ -594,10 +685,39 @@
     decideApproval("tool/reject");
   });
 
+  stopEl.addEventListener("click", () => {
+    stopTurn();
+  });
+
   newEl.addEventListener("click", () => {
     startThread().catch((err) => {
       showBanner(readableError(err) || "开不了新对话。");
     });
+  });
+
+  openPrefsEl.addEventListener("click", openPrefs);
+  closePrefsEl.addEventListener("click", closePrefs);
+  prefsMaskEl.addEventListener("click", (e) => {
+    if (e.target === prefsMaskEl) closePrefs();
+  });
+  prefsSaveEl.addEventListener("click", () => {
+    savePrefs();
+  });
+  prefsPickEl.addEventListener("click", () => {
+    fetch("/settings/workspace-pick", { method: "POST" })
+      .then((res) => res.json())
+      .then((data) => applySettingsPayload(data))
+      .catch(() => {});
+  });
+  document.querySelectorAll(".prefs-preset").forEach((btn) => {
+    btn.addEventListener("click", () => {
+      prefsModelEl.value = btn.dataset.model || "";
+    });
+  });
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape" && !prefsMaskEl.classList.contains("hidden")) {
+      closePrefs();
+    }
   });
 
   toggleRailEl.addEventListener("click", () => {

@@ -35,6 +35,8 @@ pub enum LlmError {
     Transport(String),
     #[error("llm invalid response: {0}")]
     InvalidResponse(String),
+    #[error("llm interrupted")]
+    Interrupted,
 }
 
 /// Replace any occurrence of `secret` so errors never echo the API key.

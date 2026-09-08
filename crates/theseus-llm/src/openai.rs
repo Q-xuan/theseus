@@ -1,5 +1,7 @@
 use std::io::{BufRead, BufReader, Read, Write};
 use std::net::TcpStream;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::Duration;
 
 use native_tls::TlsConnector;
@@ -19,6 +21,7 @@ pub struct OpenAiChatSeam {
     base_url: String,
     api_key: Option<String>,
     default_model: String,
+    cancel: Option<Arc<AtomicBool>>,
 }
 
 impl std::fmt::Debug for OpenAiChatSeam {
@@ -46,7 +49,13 @@ impl OpenAiChatSeam {
             base_url: base_url.into(),
             api_key,
             default_model: default_model.into(),
+            cancel: None,
         }
+    }
+
+    pub fn with_cancel(mut self, cancel: Arc<AtomicBool>) -> Self {
+        self.cancel = Some(cancel);
+        self
     }
 
     pub fn default_base_url_const() -> &'static str {
@@ -93,7 +102,7 @@ impl LlmSeam for OpenAiChatSeam {
         let body =
             serde_json::to_vec(&payload).map_err(|e| LlmError::InvalidResponse(e.to_string()))?;
         let url = self.chat_url();
-        post_sse(&url, key, &body, on_delta)
+        post_sse(&url, key, &body, on_delta, self.cancel.as_deref())
     }
 }
 
@@ -148,6 +157,7 @@ fn post_sse(
     key: &str,
     body: &[u8],
     on_delta: &mut dyn FnMut(&str),
+    cancel: Option<&AtomicBool>,
 ) -> Result<ChatOutcome, LlmError> {
     let endpoint = parse_endpoint(url)?;
     let tcp = TcpStream::connect((endpoint.host.as_str(), endpoint.port))
@@ -174,14 +184,14 @@ fn post_sse(
             .write_all(request.as_bytes())
             .and_then(|_| stream.write_all(body))
             .map_err(|e| LlmError::Transport(redact(&e.to_string(), key)))?;
-        read_http_sse(stream, key, on_delta)
+        read_http_sse(stream, key, on_delta, cancel)
     } else {
         let mut stream = tcp;
         stream
             .write_all(request.as_bytes())
             .and_then(|_| stream.write_all(body))
             .map_err(|e| LlmError::Transport(redact(&e.to_string(), key)))?;
-        read_http_sse(stream, key, on_delta)
+        read_http_sse(stream, key, on_delta, cancel)
     }
 }
 
@@ -189,6 +199,7 @@ fn read_http_sse<S: Read>(
     stream: S,
     key: &str,
     on_delta: &mut dyn FnMut(&str),
+    cancel: Option<&AtomicBool>,
 ) -> Result<ChatOutcome, LlmError> {
     let mut reader = BufReader::new(stream);
     let mut status_line = String::new();
@@ -224,9 +235,14 @@ fn read_http_sse<S: Read>(
         });
     }
     if chunked {
-        assemble_sse(BufReader::new(ChunkedReader::new(reader)), on_delta, key)
+        assemble_sse(
+            BufReader::new(ChunkedReader::new(reader)),
+            on_delta,
+            key,
+            cancel,
+        )
     } else {
-        assemble_sse(reader, on_delta, key)
+        assemble_sse(reader, on_delta, key, cancel)
     }
 }
 
@@ -299,10 +315,14 @@ pub(crate) fn assemble_sse<R: BufRead>(
     reader: R,
     on_delta: &mut dyn FnMut(&str),
     redact_secret: &str,
+    cancel: Option<&AtomicBool>,
 ) -> Result<ChatOutcome, LlmError> {
     let mut assembled = String::new();
     let mut acc: Vec<AccCall> = Vec::new();
     for line in reader.lines() {
+        if cancel.is_some_and(|c| c.load(Ordering::Relaxed)) {
+            return Err(LlmError::Interrupted);
+        }
         let line = line.map_err(|e| LlmError::Transport(redact(&e.to_string(), redact_secret)))?;
         let Some(data) = sse_data(&line) else {
             continue;
@@ -539,6 +559,7 @@ data: [DONE]
             std::io::Cursor::new(body),
             &mut |d| seen.push(d.to_string()),
             "",
+            None,
         )
         .unwrap();
         assert_eq!(out.text, "Hello");
@@ -557,7 +578,7 @@ data: {\"choices\":[{\"delta\":{\"tool_calls\":[{\"index\":0,\"function\":{\"arg
 
 data: [DONE]
 ";
-        let out = assemble_sse(std::io::Cursor::new(body), &mut |_| {}, "").unwrap();
+        let out = assemble_sse(std::io::Cursor::new(body), &mut |_| {}, "", None).unwrap();
         assert!(out.text.is_empty());
         assert_eq!(out.tool_calls.len(), 1);
         assert_eq!(out.tool_calls[0].id, "c1");
