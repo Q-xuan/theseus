@@ -30,13 +30,16 @@
           <div id="run-state" class="run-state hidden">进行中</div>
         </header>
         <div id="banner" class="banner hidden" role="status"></div>
-        <main class="thread" id="thread" data-conversation-scroll>
-          <p id="empty" class="empty">
-            点左侧「新对话」开一轮，或从最近列表继续。<br />
-            危险工具会在输入条上出现一张确认卡。
-          </p>
-          <ol id="log" class="log" aria-live="polite"></ol>
-        </main>
+        <div class="thread-col">
+          <nav id="timeline" class="timeline" aria-label="回合时间线"></nav>
+          <main class="thread" id="thread" data-conversation-scroll>
+            <p id="empty" class="empty">
+              点左侧「新对话」开一轮，或从最近列表继续。<br />
+              危险工具会在输入条上出现一张确认卡。
+            </p>
+            <ol id="log" class="log" aria-live="polite"></ol>
+          </main>
+        </div>
         <div id="dock" class="dock">
           <aside id="approval" class="gate hidden" role="dialog" aria-label="工具确认">
             <div class="gate-strip"></div>
@@ -58,7 +61,22 @@
               autocomplete="off"
               disabled
             ></textarea>
-            <button type="submit" id="send" disabled>发送</button>
+            <div class="composer-strip">
+              <span id="model-busy" class="model-busy" aria-hidden="true"></span>
+              <div class="model-wrap">
+                <button type="button" id="model-strip" class="model-strip" aria-haspopup="listbox" aria-expanded="false" aria-label="当前模型">
+                  <span id="model-name" class="model-name"></span>
+                  <span id="model-variant" class="model-variant"></span>
+                  <span class="model-chevron" aria-hidden="true">▾</span>
+                </button>
+                <div id="model-pop" class="model-pop hidden" role="listbox" aria-label="选择模型">
+                  <input id="model-input" type="text" autocomplete="off" spellcheck="false" placeholder="模型名" />
+                  <button type="button" class="model-choice" data-model="gpt-4o-mini">gpt-4o-mini</button>
+                  <button type="button" class="model-choice" data-model="gpt-4o">gpt-4o</button>
+                </div>
+              </div>
+              <button type="submit" id="send" disabled>发送</button>
+            </div>
           </form>
         </div>
       </div>

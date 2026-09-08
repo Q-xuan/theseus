@@ -125,5 +125,23 @@ async fn preview_health_does_not_mention_secrets() {
     assert!(body.contains("stdio-sidecar"), "{body}");
     assert!(!body.contains("sk-"));
     assert!(!body.contains("THESEUS_LLM_API_KEY"));
+
+    let model_body = tokio::task::spawn_blocking(move || {
+        let mut last = String::new();
+        if let Ok(mut stream) = TcpStream::connect(addr) {
+            let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+            let req = "GET /model HTTP/1.1\r\nHost: 127.0.0.1\r\nConnection: close\r\n\r\n";
+            if stream.write_all(req.as_bytes()).is_ok() {
+                last.clear();
+                let _ = stream.read_to_string(&mut last);
+            }
+        }
+        last
+    })
+    .await
+    .unwrap();
+    assert!(model_body.contains("\"model\""), "{model_body}");
+    assert!(!model_body.contains("THESEUS_LLM_API_KEY"));
+    assert!(!model_body.contains("sk-"));
     sidecar.shutdown();
 }

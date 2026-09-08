@@ -11,10 +11,15 @@
 
 mod bridge;
 mod locate;
+mod model;
 mod sidecar;
 
 pub use bridge::{serve, serve_listener};
 pub use locate::{bin_name, locate_app_server, LocateError};
+pub use model::{
+    persist_user_model, resolve_user_model, sidecar_model, DEFAULT_MODEL, ENV_MODEL,
+    ENV_MODEL_LEGACY,
+};
 pub use sidecar::{Sidecar, SidecarError};
 
 /// Default loopback port for `--preview` (uncommon; not a public service).

@@ -47,9 +47,16 @@ fn desktop_ui_stays_a_client() {
     assert!(!html.contains("OAuth"));
     assert!(!js.contains("shareUrl"));
     assert!(!js.contains("shortLink"));
-    assert!(!js.contains("THESEUS_LLM_MODEL"));
-    assert!(!html.contains("turn-anchor"));
-    assert!(!html.contains("timeline"));
+    assert!(
+        !js.contains("THESEUS_LLM_MODEL"),
+        "model strip talks to /model; env names stay in the shell"
+    );
+    assert!(html.contains("id=\"model-strip\""), "composer model strip");
+    assert!(html.contains("id=\"timeline\""), "left turn timeline");
+    assert!(js.contains("/model"), "shell model endpoint");
+    assert!(js.contains("turn-anchor"), "clickable turn marks");
+    assert!(js.contains("scrollToTurn"));
+    assert!(js.contains("dataset.turn"), "turn marks carry a turn index");
     assert!(js.contains("item/agentMessage/delta"));
     assert!(js.contains("thread/start"));
     assert!(js.contains("thread/resume"));
@@ -88,6 +95,8 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     assert!(html.contains("需要确认才能继续"));
     assert!(html.contains("id=\"run-state\""));
     assert!(html.contains("id=\"thread-id-box\""));
+    assert!(css.contains("composer-strip"), "model strip on composer bottom");
+    assert!(css.contains(".timeline"), "turn ticks");
     assert!(!html.contains("Plugins"));
     assert!(!html.contains("Pull requests"));
     assert!(!html.contains("Scheduled"));

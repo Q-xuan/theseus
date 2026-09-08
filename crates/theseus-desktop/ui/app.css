@@ -6,6 +6,7 @@
   - ui-tool GenericToolCard: name chip + one-line brief, body on disclose
   Codex Desktop product feel (density / dark only): charcoal rail, near-black
   main, muted-blue selected row, user bubble, allow/deny on the dock.
+  Composer model strip + left turn ticks: feel only (no Codex product chrome).
   Feel only: no extra nav, settings wall, or key box.
 */
 
@@ -259,14 +260,64 @@ body {
 .run-state.hidden,
 .composer.hidden,
 .tool-body.hidden,
-.thread-id.hidden {
+.thread-id.hidden,
+.model-pop.hidden {
   display: none;
+}
+
+.thread-col {
+  flex: 1;
+  min-height: 0;
+  display: flex;
+  position: relative;
+}
+
+.timeline {
+  flex: none;
+  width: 16px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-evenly;
+  align-items: center;
+  padding: 10px 0;
+  pointer-events: none;
+}
+
+.timeline .tick {
+  pointer-events: auto;
+  appearance: none;
+  width: 8px;
+  height: 2px;
+  padding: 4px 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.timeline .tick::after {
+  content: "";
+  display: block;
+  width: 8px;
+  height: 2px;
+  background: #4a4a4a;
+  border-radius: 1px;
+}
+
+.timeline .tick.active::after {
+  width: 12px;
+  height: 3px;
+  background: #ececec;
+}
+
+.timeline .tick:hover::after {
+  background: #8b8b8b;
 }
 
 .thread {
   flex: 1;
   overflow: auto;
-  padding: 8px 16px 6px;
+  padding: 8px 16px 6px 8px;
+  min-width: 0;
 }
 
 .empty {
@@ -282,11 +333,29 @@ body {
   max-width: 720px;
 }
 
-.turn-mark {
+.turn-mark,
+.turn-anchor {
   margin: 8px 0 6px;
   color: var(--muted);
   font-size: 11px;
   letter-spacing: 0.04em;
+}
+
+.turn-anchor {
+  appearance: none;
+  display: block;
+  width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  padding: 0;
+  cursor: pointer;
+}
+
+.turn-anchor:hover {
+  color: var(--text);
 }
 
 .item {
@@ -451,10 +520,11 @@ body {
 }
 
 .composer {
+  position: relative;
   display: flex;
-  gap: 6px;
-  align-items: flex-end;
-  padding: 6px;
+  flex-direction: column;
+  gap: 2px;
+  padding: 6px 6px 4px;
   border-radius: 10px;
   background: var(--ghost-bg);
   border: 1px solid var(--line);
@@ -465,13 +535,134 @@ body {
   flex: 1;
   resize: none;
   border: 0;
-  padding: 5px 6px;
+  padding: 5px 6px 2px;
   font: inherit;
   line-height: 1.35;
   background: transparent;
   color: inherit;
   min-height: 36px;
   max-height: 140px;
+}
+
+.composer-strip {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 28px;
+  padding: 0 2px 2px;
+}
+
+.model-busy {
+  flex: none;
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  border: 1.5px solid #4a4a4a;
+  border-top-color: #c8c8c8;
+  opacity: 0;
+}
+
+.model-busy.on {
+  opacity: 0.85;
+  animation: model-spin 0.7s linear infinite;
+}
+
+@keyframes model-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+.model-wrap {
+  position: relative;
+  min-width: 0;
+}
+
+.model-strip {
+  appearance: none;
+  display: inline-flex;
+  align-items: baseline;
+  gap: 6px;
+  max-width: 100%;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  cursor: pointer;
+  padding: 2px 4px;
+  border-radius: 4px;
+}
+
+.model-strip:hover {
+  background: var(--hover);
+}
+
+.model-name {
+  font-weight: 580;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.model-variant {
+  color: var(--muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.model-chevron {
+  font-size: 9px;
+  color: var(--muted);
+}
+
+.model-pop {
+  position: absolute;
+  left: 0;
+  bottom: calc(100% + 4px);
+  min-width: 196px;
+  padding: 6px;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: #1a1a1a;
+  box-shadow: var(--elev);
+  z-index: 3;
+}
+
+.model-pop input {
+  width: 100%;
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  background: #111;
+  color: inherit;
+  font: inherit;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+}
+
+.model-pop input:focus {
+  outline: none;
+  border-color: #4a4a4a;
+}
+
+.model-choice {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  padding: 4px 6px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.model-choice:hover {
+  background: var(--hover);
+}
+
+.composer-strip #send {
+  margin-left: auto;
 }
 
 .composer textarea:focus {

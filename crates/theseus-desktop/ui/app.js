@@ -23,6 +23,14 @@
   const approvalRejectEl = $("approval-reject");
   const railEl = $("rail");
   const toggleRailEl = $("toggle-rail");
+  const timelineEl = $("timeline");
+  const threadEl = $("thread");
+  const modelStripEl = $("model-strip");
+  const modelNameEl = $("model-name");
+  const modelVariantEl = $("model-variant");
+  const modelPopEl = $("model-pop");
+  const modelInputEl = $("model-input");
+  const modelBusyEl = $("model-busy");
 
   let ws = null;
   let nextId = 1;
@@ -34,6 +42,8 @@
   let approval = null;
   let recent = [];
   let turnCount = 0;
+  let currentModel = "";
+  let activeTurn = 0;
 
   function readableError(err) {
     const raw = (err && err.message) || (typeof err === "string" ? err : "");
@@ -106,11 +116,110 @@
   function setBusy(on) {
     busy = on;
     runEl.classList.toggle("hidden", !on);
+    modelBusyEl.classList.toggle("on", on);
     const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy && !approval);
     inputEl.disabled = !ready;
     sendEl.disabled = !ready;
     const connected = Boolean(ws && ws.readyState === 1 && !busy);
     newEl.disabled = !connected;
+  }
+
+  function splitModelLabel(name) {
+    const parts = String(name || "").trim().split(/\s+/).filter(Boolean);
+    if (parts.length >= 2) {
+      return { name: parts.slice(0, -1).join(" "), variant: parts[parts.length - 1] };
+    }
+    return { name: parts[0] || "", variant: "" };
+  }
+
+  function renderModel() {
+    const { name, variant } = splitModelLabel(currentModel);
+    modelNameEl.textContent = name || "模型";
+    modelVariantEl.textContent = variant;
+    modelInputEl.value = currentModel;
+  }
+
+  function closeModelPop() {
+    modelPopEl.classList.add("hidden");
+    modelStripEl.setAttribute("aria-expanded", "false");
+  }
+
+  function openModelPop() {
+    modelPopEl.classList.remove("hidden");
+    modelStripEl.setAttribute("aria-expanded", "true");
+    modelInputEl.value = currentModel;
+    modelInputEl.focus();
+    modelInputEl.select();
+  }
+
+  async function loadModel() {
+    try {
+      const res = await fetch("/model");
+      const data = await res.json();
+      currentModel = (data && data.model) || "";
+    } catch {
+      currentModel = currentModel || "";
+    }
+    renderModel();
+  }
+
+  async function saveModel(raw) {
+    const name = String(raw || "").trim();
+    if (!name) return;
+    try {
+      const res = await fetch("/model", {
+        method: "PUT",
+        headers: { "content-type": "application/json" },
+        body: JSON.stringify({ model: name }),
+      });
+      const data = await res.json();
+      if (data && data.model) currentModel = data.model;
+      else currentModel = name;
+    } catch {
+      currentModel = name;
+    }
+    renderModel();
+    closeModelPop();
+  }
+
+  function setActiveTurn(n) {
+    activeTurn = n;
+    timelineEl.querySelectorAll(".tick").forEach((tick) => {
+      tick.classList.toggle("active", Number(tick.dataset.turn) === n);
+    });
+  }
+
+  function scrollToTurn(n) {
+    const mark = document.getElementById(`turn-${n}`);
+    if (!mark) return;
+    mark.scrollIntoView({ block: "start", behavior: "smooth" });
+    setActiveTurn(n);
+  }
+
+  function renderTimeline() {
+    timelineEl.innerHTML = "";
+    for (let n = 1; n <= turnCount; n += 1) {
+      const tick = document.createElement("button");
+      tick.type = "button";
+      tick.className = "tick" + (n === activeTurn ? " active" : "");
+      tick.dataset.turn = String(n);
+      tick.setAttribute("aria-label", `回合 ${n}`);
+      tick.addEventListener("click", () => scrollToTurn(n));
+      timelineEl.appendChild(tick);
+    }
+    if (!activeTurn && turnCount > 0) setActiveTurn(1);
+  }
+
+  function syncActiveTurn() {
+    const marks = logEl.querySelectorAll(".turn-anchor");
+    if (!marks.length) return;
+    const top = threadEl.getBoundingClientRect().top + 16;
+    let current = marks[0];
+    marks.forEach((mark) => {
+      if (mark.getBoundingClientRect().top <= top + 48) current = mark;
+    });
+    const n = Number(current.dataset.turn);
+    if (n) setActiveTurn(n);
   }
 
   function pretty(raw) {
@@ -189,11 +298,21 @@
   }
 
   function addTurnMark(label) {
+    const n = turnCount;
     const li = document.createElement("li");
     li.className = "turn-mark";
-    li.textContent = label || `回合 ${turnCount}`;
+    const btn = document.createElement("button");
+    btn.type = "button";
+    btn.className = "turn-anchor";
+    btn.id = `turn-${n}`;
+    btn.dataset.turn = String(n);
+    btn.textContent = label || `回合 ${n}`;
+    btn.addEventListener("click", () => scrollToTurn(n));
+    li.appendChild(btn);
     logEl.appendChild(li);
     emptyEl.classList.add("hidden");
+    renderTimeline();
+    setActiveTurn(n);
   }
 
   function escapeHtml(s) {
@@ -208,6 +327,8 @@
     logEl.innerHTML = "";
     emptyEl.classList.remove("hidden");
     turnCount = 0;
+    activeTurn = 0;
+    timelineEl.innerHTML = "";
     hideApproval();
   }
 
@@ -385,7 +506,8 @@
     clearLog();
     showThreadId(null);
     titleEl.textContent = "新对话";
-    const result = await rpc("thread/start", {});
+    const params = currentModel ? { model: currentModel } : {};
+    const result = await rpc("thread/start", params);
     applyThread(result);
     await loadRecent();
   }
@@ -482,6 +604,34 @@
     railEl.classList.toggle("open");
   });
 
+  modelStripEl.addEventListener("click", (e) => {
+    e.preventDefault();
+    if (modelPopEl.classList.contains("hidden")) openModelPop();
+    else closeModelPop();
+  });
+
+  modelInputEl.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      saveModel(modelInputEl.value);
+    } else if (e.key === "Escape") {
+      closeModelPop();
+    }
+  });
+
+  modelPopEl.querySelectorAll(".model-choice").forEach((btn) => {
+    btn.addEventListener("click", () => saveModel(btn.dataset.model));
+  });
+
+  document.addEventListener("click", (e) => {
+    if (!modelPopEl.classList.contains("hidden")) {
+      const wrap = modelStripEl.closest(".model-wrap");
+      if (wrap && !wrap.contains(e.target)) closeModelPop();
+    }
+  });
+
+  threadEl.addEventListener("scroll", syncActiveTurn, { passive: true });
+
   copyThreadIdEl.addEventListener("click", () => {
     if (!threadId) return;
     copyText(threadId)
@@ -503,5 +653,6 @@
       });
   });
 
+  loadModel();
   connect();
 })();
