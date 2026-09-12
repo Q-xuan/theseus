@@ -50,6 +50,9 @@ fn desktop_ui_stays_a_client() {
     assert!(html.contains("id=\"stop\""), "composer Stop");
     assert!(html.contains("id=\"workspace-chip\""), "current workspace");
     assert!(html.contains("id=\"empty-cta\""), "centered empty CTA");
+    assert!(html.contains("id=\"composer-input\""), "gate replaces composer input");
+    assert!(html.contains("id=\"stopped\""), "已停止 sits on the Stop beat");
+    assert!(html.contains("已停止"), "stopped label copy");
     assert!(!html.contains("危险工具"), "defer gate tip off the empty state");
     assert!(!html.contains(">停止<"), "Stop is a circular icon, not a text button");
     assert!(!html.contains("type=\"search\""));
@@ -92,7 +95,16 @@ fn desktop_ui_stays_a_client() {
     );
     assert!(!js.contains("titleEl.textContent = text"));
     assert!(!js.contains("class=\"who\""), "no 你/助手 role tags");
-    assert!(!js.contains("t.preview || t.id"), "sidebar is preview only");
+    assert!(!js.contains("t.preview || t.id"), "sidebar does not fall back to thr_*");
+    assert!(js.contains("busyThreadId"), "amber dot tracks the in-progress thread");
+    assert!(js.contains("relativeTime"), "sidebar shows relative updatedAt");
+    assert!(js.contains("t.updatedAt"), "sidebar row uses list updatedAt");
+    assert!(js.contains("session-title"), "sidebar row is title + time");
+    assert!(js.contains("FOLLOW_THRESHOLD"), "unfollow after scrolling up");
+    assert!(js.contains("followIfPinned"), "one conversation follow-scroll");
+    assert!(js.contains("setBusy(false, stopped)"), "Stop and 已停止 share one busy beat");
+    assert!(js.contains("composer-input"), "gate takes over the composer input");
+    assert!(js.contains("classList.add(\"gated\")"), "approval card replaces the input");
     assert!(
         !js.contains("session/event"),
         "UI must project Item/delta, not raw session log"
@@ -119,6 +131,11 @@ fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     assert!(!html.contains("id=\"run-state\""), "busy lives on spinner + Stop");
     assert!(css.contains("composer-strip"), "model strip on composer bottom");
     assert!(css.contains(".timeline"), "turn ticks");
+    assert!(css.contains("height: 16px"), "timeline ticks are a visible hit target");
+    assert!(css.contains("height: 24px"), "tool row title + summary is 24px");
+    assert!(css.contains(".session-time"), "sidebar relative time");
+    assert!(css.contains("composer.gated"), "gate occupies the composer slot");
+    assert!(css.contains("position: sticky"), "composer stays put under the one scroll");
     assert!(css.contains(".stop-sq"), "circular Stop with square inside");
     assert!(css.contains("border-radius: 50%"), "circular Stop");
     assert!(!html.contains("Plugins"));

@@ -72,44 +72,49 @@
           </div>
         </div>
         <div id="dock" class="dock">
-          <aside id="approval" class="gate hidden" role="dialog" aria-label="工具确认">
-            <div class="gate-strip"></div>
-            <div class="gate-body">
-              <div class="gate-kicker">需要确认才能继续</div>
-              <div id="approval-tool" class="gate-tool"></div>
-              <pre id="approval-summary" class="gate-summary"></pre>
-              <div class="gate-actions">
-                <button type="button" id="approval-reject" class="ghost">拒绝</button>
-                <button type="button" id="approval-approve">批准</button>
-              </div>
-            </div>
-          </aside>
           <form id="composer" class="composer">
-            <textarea
-              id="input"
-              rows="2"
-              placeholder="发给模型… Enter 发送"
-              autocomplete="off"
-              disabled
-            ></textarea>
-            <div class="composer-strip">
-              <span id="model-busy" class="model-busy" aria-hidden="true"></span>
-              <div class="model-wrap">
-                <button type="button" id="model-strip" class="model-strip" aria-haspopup="listbox" aria-expanded="false" aria-label="当前模型">
-                  <span id="model-name" class="model-name"></span>
-                  <span id="model-variant" class="model-variant"></span>
-                  <span class="model-chevron" aria-hidden="true">▾</span>
-                </button>
-                <div id="model-pop" class="model-pop hidden" role="listbox" aria-label="选择模型">
-                  <input id="model-input" type="text" autocomplete="off" spellcheck="false" placeholder="模型名" />
-                  <button type="button" class="model-choice" data-model="gpt-4o-mini">gpt-4o-mini</button>
-                  <button type="button" class="model-choice" data-model="gpt-4o">gpt-4o</button>
+            <aside id="approval" class="gate hidden" role="dialog" aria-label="工具确认">
+              <div class="gate-strip"></div>
+              <div class="gate-body">
+                <div class="gate-kicker">需要确认才能继续</div>
+                <div id="approval-tool" class="gate-tool"></div>
+                <pre id="approval-summary" class="gate-summary"></pre>
+                <div class="gate-actions">
+                  <button type="button" id="approval-reject" class="ghost">拒绝</button>
+                  <button type="button" id="approval-approve">批准</button>
                 </div>
               </div>
-              <button type="button" id="stop" class="stop hidden" aria-label="停止">
-                <span class="stop-sq" aria-hidden="true"></span>
-              </button>
-              <button type="submit" id="send" disabled>发送</button>
+            </aside>
+            <div id="composer-input" class="composer-input">
+              <textarea
+                id="input"
+                rows="2"
+                placeholder="发给模型… Enter 发送"
+                autocomplete="off"
+                disabled
+              ></textarea>
+              <div class="composer-strip">
+                <span id="model-busy" class="model-busy" aria-hidden="true"></span>
+                <div class="model-wrap">
+                  <button type="button" id="model-strip" class="model-strip" aria-haspopup="listbox" aria-expanded="false" aria-label="当前模型">
+                    <span id="model-name" class="model-name"></span>
+                    <span id="model-variant" class="model-variant"></span>
+                    <span class="model-chevron" aria-hidden="true">▾</span>
+                  </button>
+                  <div id="model-pop" class="model-pop hidden" role="listbox" aria-label="选择模型">
+                    <input id="model-input" type="text" autocomplete="off" spellcheck="false" placeholder="模型名" />
+                    <button type="button" class="model-choice" data-model="gpt-4o-mini">gpt-4o-mini</button>
+                    <button type="button" class="model-choice" data-model="gpt-4o">gpt-4o</button>
+                  </div>
+                </div>
+                <div class="composer-end">
+                  <button type="button" id="stop" class="stop hidden" aria-label="停止">
+                    <span class="stop-sq" aria-hidden="true"></span>
+                  </button>
+                  <span id="stopped" class="stopped hidden" aria-live="polite">已停止</span>
+                  <button type="submit" id="send" disabled>发送</button>
+                </div>
+              </div>
             </div>
           </form>
         </div>

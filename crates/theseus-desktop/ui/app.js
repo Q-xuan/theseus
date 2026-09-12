@@ -13,11 +13,13 @@
   const sessionsEl = $("sessions");
   const sessionsEmptyEl = $("sessions-empty");
   const formEl = $("composer");
+  const composerInputEl = $("composer-input");
   const approvalEl = $("approval");
   const approvalToolEl = $("approval-tool");
   const approvalSummaryEl = $("approval-summary");
   const approvalApproveEl = $("approval-approve");
   const approvalRejectEl = $("approval-reject");
+  const stoppedEl = $("stopped");
   const railEl = $("rail");
   const toggleRailEl = $("toggle-rail");
   const timelineEl = $("timeline");
@@ -47,6 +49,7 @@
   let threadId = null;
   let threadPreview = "";
   let busy = false;
+  let busyThreadId = null;
   const items = new Map();
   let approval = null;
   let recent = [];
@@ -55,6 +58,8 @@
   let currentWorkspace = "";
   let keyConfigured = false;
   let activeTurn = 0;
+  let followScroll = true;
+  const FOLLOW_THRESHOLD = 72;
 
   function readableError(err) {
     const raw = (err && err.message) || (typeof err === "string" ? err : "");
@@ -154,11 +159,28 @@
     bannerEl.classList.remove("hidden");
   }
 
-  function setBusy(on) {
+  function relativeTime(unix) {
+    const n = Number(unix);
+    if (!n) return "";
+    const ms = n < 1e12 ? n * 1000 : n;
+    const sec = Math.max(0, Math.round((Date.now() - ms) / 1000));
+    if (sec < 45) return "刚刚";
+    if (sec < 3600) return `${Math.floor(sec / 60)}分钟前`;
+    if (sec < 86400) return `${Math.floor(sec / 3600)}小时前`;
+    if (sec < 86400 * 30) return `${Math.floor(sec / 86400)}天前`;
+    const d = new Date(ms);
+    const month = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${d.getFullYear()}-${month}-${day}`;
+  }
+
+  function setBusy(on, stopped) {
     busy = on;
+    busyThreadId = on ? threadId : null;
     modelBusyEl.classList.toggle("on", on);
     sendEl.classList.toggle("hidden", on);
     stopEl.classList.toggle("hidden", !on);
+    stoppedEl.classList.toggle("hidden", on || stopped !== true);
     const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy && !approval);
     inputEl.disabled = !ready;
     sendEl.disabled = !ready;
@@ -166,14 +188,18 @@
     const connected = Boolean(ws && ws.readyState === 1 && !busy);
     newEl.disabled = !connected;
     emptyCtaEl.disabled = !connected;
+    renderSessions();
   }
 
   function clearBusyChrome() {
     busy = false;
+    busyThreadId = null;
     modelBusyEl.classList.remove("on");
     stopEl.classList.add("hidden");
     stopEl.disabled = true;
     sendEl.classList.remove("hidden");
+    stoppedEl.classList.add("hidden");
+    renderSessions();
   }
 
   function renderWorkspace(path) {
@@ -324,6 +350,20 @@
     if (!activeTurn && turnCount > 0) setActiveTurn(1);
   }
 
+  function nearBottom() {
+    return threadEl.scrollHeight - threadEl.scrollTop - threadEl.clientHeight <= FOLLOW_THRESHOLD;
+  }
+
+  function followIfPinned() {
+    if (!followScroll) return;
+    threadEl.scrollTop = threadEl.scrollHeight;
+  }
+
+  function pinFollow() {
+    followScroll = true;
+    followIfPinned();
+  }
+
   function syncActiveTurn() {
     const marks = logEl.querySelectorAll(".turn-anchor");
     if (!marks.length) return;
@@ -388,12 +428,11 @@
         type === "toolCall" ? briefArgs(item.arguments) : String(item.output || "").split("\n")[0];
       const body =
         type === "toolCall" ? pretty(item.arguments || "") : String(item.output || "");
-      const open = type === "toolResult" && isErr;
       li.innerHTML = `<div class="tool-card"><button type="button" class="tool-head"><span class="tool-name">${escapeHtml(
         name
-      )}</span><span class="tool-brief">${escapeHtml(brief)}</span></button><pre class="tool-body${
-        open ? "" : " hidden"
-      }">${escapeHtml(body)}</pre></div>`;
+      )}</span><span class="tool-brief">${escapeHtml(
+        brief
+      )}</span></button><pre class="tool-body hidden">${escapeHtml(body)}</pre></div>`;
       li.querySelector(".tool-head").addEventListener("click", () => {
         li.querySelector(".tool-body").classList.toggle("hidden");
       });
@@ -402,7 +441,7 @@
       li.textContent = type || "item";
     }
     syncEmpty();
-    li.scrollIntoView({ block: "end" });
+    followIfPinned();
   }
 
   function addTurnMark() {
@@ -421,6 +460,7 @@
     syncEmpty();
     renderTimeline();
     setActiveTurn(n);
+    followIfPinned();
   }
 
   function escapeHtml(s) {
@@ -445,7 +485,8 @@
     approvalEl.classList.add("hidden");
     approvalToolEl.textContent = "";
     approvalSummaryEl.textContent = "";
-    formEl.classList.remove("hidden");
+    formEl.classList.remove("gated");
+    composerInputEl.classList.remove("hidden");
     renderSessions();
     const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy);
     inputEl.disabled = !ready;
@@ -459,10 +500,10 @@
     approvalSummaryEl.textContent =
       params.summary || briefArgs(params.arguments) || pretty(JSON.stringify(params.arguments || {}));
     approvalEl.classList.remove("hidden");
-    formEl.classList.add("hidden");
+    formEl.classList.add("gated");
+    composerInputEl.classList.add("hidden");
     approvalApproveEl.disabled = false;
     approvalRejectEl.disabled = false;
-    approvalEl.scrollIntoView({ block: "end" });
     renderSessions();
   }
 
@@ -488,12 +529,12 @@
       btn.type = "button";
       btn.className = "session" + (t.id === threadId ? " active" : "");
       btn.dataset.id = t.id;
-      const waiting = Boolean(approval && approval.threadId === t.id);
+      const live = t.id === busyThreadId || Boolean(approval && approval.threadId === t.id);
       btn.innerHTML = `<span class="session-dot${
-        waiting ? "" : " off"
-      }"></span><span class="session-preview">${escapeHtml(
+        live ? "" : " off"
+      }"></span><span class="session-main"><span class="session-title">${escapeHtml(
         shortLabel(t.preview, "新对话")
-      )}</span>`;
+      )}</span><span class="session-time">${escapeHtml(relativeTime(t.updatedAt))}</span></span>`;
       btn.addEventListener("click", () => {
         railEl.classList.remove("open");
         resumeThread(t.id).catch((err) => {
@@ -520,6 +561,7 @@
       }
     }
     setBusy(false);
+    pinFollow();
     inputEl.focus();
     renderSessions();
   }
@@ -574,11 +616,12 @@
         const turn = msg.params && msg.params.turn;
         if (turn && turn.status === "failed") {
           showBanner("这一轮失败了。服务端已经收口，没有半截助手消息。");
-        } else if (turn && (turn.status === "aborted" || turn.status === "interrupted")) {
-          showBanner("这一轮已停止。", "warn");
         }
+        const stopped = Boolean(
+          turn && (turn.status === "aborted" || turn.status === "interrupted")
+        );
         hideApproval();
-        setBusy(false);
+        setBusy(false, stopped);
         loadRecent();
         break;
       }
@@ -633,6 +676,7 @@
     showBanner("");
     setTitle(text, "新对话");
     threadPreview = shortLabel(text, "新对话");
+    pinFollow();
     setBusy(true);
     try {
       await rpc("turn/start", {
@@ -782,7 +826,14 @@
     }
   });
 
-  threadEl.addEventListener("scroll", syncActiveTurn, { passive: true });
+  threadEl.addEventListener(
+    "scroll",
+    () => {
+      followScroll = nearBottom();
+      syncActiveTurn();
+    },
+    { passive: true }
+  );
 
   copyThreadIdEl.addEventListener("click", () => {
     if (!threadId) return;

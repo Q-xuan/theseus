@@ -107,7 +107,7 @@ jobs:
           out.mkdir(parents=True)
 
           conf = json.loads((root / "crates/theseus-desktop/tauri.conf.json").read_text(encoding="utf-8"))
-          version = conf.get("version", "0.7.1")
+          version = conf.get("version", "0.7.2")
 
           rustc = subprocess.check_output(["rustc", "-vV"], text=True)
           triple = "unknown"
@@ -215,4 +215,4 @@ jobs:
             macOS 首次打开若被拦：右键 → 打开。Windows SmartScreen 可能提示未知发布者。
             密钥只从用户/系统环境或设置卡粘贴写入的用户环境 / 钥匙串读取。
 
-            Installer filenames follow `crates/theseus-desktop/tauri.conf.json` `version` (currently 0.7.1), which may differ from this git tag.
+            Installer filenames follow `crates/theseus-desktop/tauri.conf.json` `version` (currently 0.7.2), which may differ from this git tag.

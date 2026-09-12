@@ -289,9 +289,9 @@ cargo run -p theseus-desktop --features gui
 推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.7.1**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.7.1_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.7.1_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.7.1_x64-setup.exe`（当前用户 NSIS）
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.7.2**，不一定等于 git 标签）：
+   - macOS：`Theseus_0.7.2_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.7.2_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
+   - Windows：`Theseus_0.7.2_x64-setup.exe`（当前用户 NSIS）
 3. **未签名**：
    - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
    - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
@@ -311,8 +311,8 @@ python3 packaging/build-desktop.py
 | 产物 | 路径（相对仓库根） |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.7.1_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.7.1_*-setup.exe` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.7.2_*.dmg` |
+| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.7.2_*-setup.exe` |
 | 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
 
 包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
@@ -358,11 +358,12 @@ python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交�
 | 我们 | 对照 |
 | --- | --- |
 | 左栏 240 / 12px 边距 / 38×12「新对话」 | dsh `ui-sidebar` `SidebarRoot.module.css` |
-| 「最近」一行预览 + 选中底 + 等待琥珀点 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
-| 左侧时间线刻度（当前加粗）/ 用户气泡 / 助手正文（无角色标签） | dsh `ui-conversation` ChatView；Codex thread |
+| 「最近」标题 + 相对时间 + 选中底 + 进行中琥珀点 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
+| 左侧时间线刻度可见可点（当前加粗）/ 用户气泡 / 助手正文（无角色标签） | dsh `ui-conversation` ChatView；Codex thread |
 | 输入条底栏模型名 + 一张设置卡（地址 / 模型 / 工作区 / 密钥状态） | 薄设置，不是 Codex 设置墙 |
-| 工具名芯片 + 一行摘要，点开才见全文 | dsh `ui-tool` GenericToolCard |
+| 工具行 24px 标题 + 一行摘要，点开才见全文（不是芯片） | dsh `ui-tool` GenericToolCard |
 | 输入条被一张门闩卡顶掉：工具名 + 摘要 + 拒/批 | dsh `ApprovalPanel`（composer takeover） |
+| 单滚动视口 + 粘性输入条；上翻过阈值松开跟随 | dsh conversation scroll |
 
 不复刻闭源 Codex.app 像素，不上第二套前端框架，不加搜索墙 / 工作区树 / 设置迷宫。`theseus-web/static` 仍是协议冒烟页，不是桌面终态。
 

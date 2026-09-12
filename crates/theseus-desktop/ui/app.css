@@ -1,9 +1,12 @@
 /*
   Geometry from dsh packages/client — not a pixel clone:
   - ui-sidebar SidebarRoot.module.css: tight inset, compact new-session
-  - ui-workspace session rows: one-line preview + recency, selected fill
-  - ui-conversation ApprovalPanel: amber strip, composer takeover
-  - ui-tool GenericToolCard: name chip + one-line brief, body on disclose
+  - ui-workspace session rows: title + relative time, selected fill,
+    amber dot while a turn is in progress
+  - ui-conversation ApprovalPanel: amber strip, composer-input takeover
+  - ui-tool GenericToolCard: 24px title + one-line summary, body on disclose
+  - one conversation scroll (.thread) + sticky composer (.dock); unfollow
+    after the user scrolls up past the follow threshold
   Codex Desktop product feel (density / dark only): charcoal rail, near-black
   main, muted-blue selected row, user bubble, allow/deny on the dock.
   Composer model strip + left turn ticks: feel only (no Codex product chrome).
@@ -128,10 +131,10 @@ body {
   color: inherit;
   font: inherit;
   border-radius: 5px;
-  padding: 2px 6px;
+  padding: 4px 6px;
   cursor: pointer;
   margin-bottom: 0;
-  min-height: 22px;
+  min-height: 28px;
 }
 
 .session:hover {
@@ -153,11 +156,26 @@ body {
   background: transparent;
 }
 
-.session-preview {
+.session-main {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 8px;
+  min-width: 0;
+}
+
+.session-title {
   min-width: 0;
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.session-time {
+  flex: none;
+  color: var(--muted);
+  font-size: 11px;
+  white-space: nowrap;
 }
 
 .workspace {
@@ -255,12 +273,14 @@ body {
 .gate.hidden,
 .sessions-empty.hidden,
 .composer.hidden,
+.composer-input.hidden,
 .tool-body.hidden,
 .model-pop.hidden,
 .prefs-mask.hidden,
 .workspace-chip.hidden,
 .title-copy.hidden,
 .stop.hidden,
+.stopped.hidden,
 #send.hidden {
   display: none;
 }
@@ -278,43 +298,44 @@ body.prefs-open .empty {
 
 .timeline {
   flex: none;
-  width: 16px;
+  width: 20px;
   display: flex;
   flex-direction: column;
   justify-content: space-evenly;
   align-items: center;
-  padding: 10px 0;
-  pointer-events: none;
+  padding: 12px 0;
 }
 
 .timeline .tick {
-  pointer-events: auto;
   appearance: none;
-  width: 8px;
-  height: 2px;
-  padding: 4px 0;
+  width: 16px;
+  height: 16px;
+  padding: 0;
   border: 0;
   background: transparent;
   cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
 }
 
 .timeline .tick::after {
   content: "";
   display: block;
-  width: 6px;
+  width: 8px;
   height: 2px;
-  background: #4a4a4a;
+  background: #8b8b8b;
   border-radius: 1px;
 }
 
 .timeline .tick.active::after {
-  width: 12px;
+  width: 14px;
   height: 3px;
   background: #ececec;
 }
 
 .timeline .tick:hover::after {
-  background: #8b8b8b;
+  background: #c8c8c8;
 }
 
 .thread {
@@ -420,14 +441,16 @@ body.prefs-open .empty {
 
 .tool-head {
   display: flex;
-  align-items: baseline;
+  align-items: center;
   gap: 8px;
   width: 100%;
+  height: 24px;
+  min-height: 24px;
   border: 0;
   background: transparent;
   color: inherit;
-  font: 12px/1.3 ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
-  padding: 5px 8px;
+  font: 13px/24px inherit;
+  padding: 0 8px;
   cursor: pointer;
   text-align: left;
 }
@@ -438,6 +461,7 @@ body.prefs-open .empty {
 }
 
 .tool-brief {
+  flex: 1;
   min-width: 0;
   color: var(--muted);
   white-space: nowrap;
@@ -464,6 +488,9 @@ body.prefs-open .empty {
 }
 
 .dock {
+  flex: none;
+  position: sticky;
+  bottom: 0;
   padding: 6px 12px 10px;
   background: var(--paper);
 }
@@ -809,9 +836,35 @@ body.prefs-open .empty {
   background: var(--hover);
 }
 
-.composer-strip #send,
-.composer-strip #stop {
+.composer-input {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.composer.gated {
+  padding: 0;
+  background: transparent;
+  border-color: transparent;
+  box-shadow: none;
+}
+
+.composer.gated .gate {
+  margin: 0;
+}
+
+.composer-end {
   margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.stopped {
+  font-size: 12px;
+  color: var(--warn-text);
+  white-space: nowrap;
+  padding: 0 2px;
 }
 
 .stop {
