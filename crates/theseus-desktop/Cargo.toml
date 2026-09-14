@@ -4,7 +4,7 @@ version.workspace = true
 edition.workspace = true
 license.workspace = true
 rust-version.workspace = true
-description = "Tauri thin shell: owns the theseus-app-server stdio sidecar; Codex/dsh-density client UI"
+description = "Tauri thin shell: owns the pi --mode rpc sidecar; Codex/dsh-density client UI"
 
 [features]
 default = []

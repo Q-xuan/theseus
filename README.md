@@ -1,10 +1,8 @@
 # Theseus
 
-忒修斯之船：壳可以换，**append-only session event log** 才是那艘船。
+忒修斯之船：壳可以换。**v0.8 起桌面产品路径只适配 [pi](https://github.com/badlogic/pi-mono) 的 `pi --mode rpc`**，中间一层把 pi Events 映成现有的 Thread / Turn / Item 投影。壳不跑 derive、不跑工具环，也不再走自制 `theseus-app-server` 协议。
 
-这是一份**独立的 Theseus 实现**。只借用 session-log / app-server 这一侧的想法：[openai/codex](https://github.com/openai/codex) 的 app-server（Thread / Turn / Item 只读外形）、[deepseek-harness](https://github.com/deepseek-ai/deepseek-harness) 的 SessionEvent、以及 session log 取舍。**不是** pi 的翻版，也不自称 pi。
-
-crate / 二进制全部是 `theseus-*`。`PI_*` 与 `~/.pi-app` 仅作**已弃用**的短读兼容，新安装与文档只认 Theseus。
+`theseus-core` / `theseus-app-server` / `theseus-web` 仍是仓库里的协议实验与连通页，**不是**桌面发货路径。
 
 ## 三条冻结原则
 
@@ -12,7 +10,7 @@ crate / 二进制全部是 `theseus-*`。`PI_*` 与 `~/.pi-app` 仅作**已弃�
 2. **shell stays out of core** — 桌面 / Web / `--preview` 只投影协议，不跑 derive、不写 log、不进工具环。
 3. **delete before add** — 先删后加。没有 MCP、compaction、Ask/Plan 新协议、插件体系。
 
-最小可运行的 Rust MVP：append-only session log + stdio JSON-RPC app-server。`theseus-web` 是薄客户端壳（只投影协议）。模型调用走薄的 `theseus-llm` seam（OpenAI 兼容流式 `chat.completions`）。同 turn 内可跑 `read` / `write` / `edit` / `bash` 工具环；危险三项可挂一层确认门闩。未签名的 macOS / Windows 安装包挂在 `v*` 标签的 [GitHub Releases](https://github.com/Q-xuan/theseus/releases)；也可以在自己的机器上 `python3 packaging/build-desktop.py`。Linux 只做 `--preview` / `cargo test`（[`.github/workflows/linux.yml`](.github/workflows/linux.yml)）。
+桌面发货：未签名的 macOS / Windows 安装包挂在 `v*` 标签的 [GitHub Releases](https://github.com/Q-xuan/theseus/releases)；也可以在自己的机器上 `python3 packaging/build-desktop.py`。Windows 安装包文件名仍是 `Theseus_*_x64-setup.exe`。本机需要把 `pi` 放进 PATH。Linux 只做 `--preview` / `cargo test`（[`.github/workflows/linux.yml`](.github/workflows/linux.yml)）。
 
 ## Crates
 
@@ -24,9 +22,9 @@ crate / 二进制全部是 `theseus-*`。`PI_*` 与 `~/.pi-app` 仅作**已弃�
 | `theseus-core` | append-only 日志（内存 + JSONL 落盘）、turn/step fencing、每 turn 硬顶 20 step、`derive_messages`、`project_item`、fork |
 | `theseus-llm` | OpenAI 兼容流式 `chat.completions` seam；返回文本和/或 tool_calls；key 只读环境变量 |
 | `theseus-tools` | 本机四工具（cwd 钉在 thread 工作区；`bash` 必有超时） |
-| `theseus-app-server` | stdio JSON-RPC：`thread/start`、`thread/resume`、`thread/list`、`turn/start`、`tool/approve`、`tool/reject`、事件流 |
+| `theseus-app-server` | （非产品路径）stdio JSON-RPC 实验：`thread/start` / `turn/start` / 确认门闩 |
 | `theseus-web` | 浏览器协议客户端（连通 / 手测）。**不是**产品终态皮 |
-| `theseus-desktop` | Tauri 薄壳：拉起/杀掉 `theseus-app-server` sidecar（stdio）；v0.4 皮按 Codex Desktop / dsh 密度；v0.5 本机打 macOS `.app` / Windows NSIS，sidecar 打进包 |
+| `theseus-desktop` | Tauri 薄壳：PATH 发现并拉起 `pi --mode rpc`；中间一层 event map；Codex Desktop 密度 UX；v0.8 打 `Theseus_*_x64-setup.exe` |
 
 ## 事件契约
 
@@ -251,105 +249,90 @@ cargo run -p theseus-web
 
 冒烟：`cargo test -p theseus-web`。
 
-## 桌面壳（v0.4 皮 + v0.5 可装包）
+## 桌面壳（v0.8：`pi --mode rpc`）
 
-`theseus-desktop` 只做两件事：管 `theseus-app-server` 子进程的生死，把 **stdio JSON-RPC** 接到一层薄客户端。壳里**没有** derive / tool loop / SessionEvent 新 kind。
+`theseus-desktop` 是 Codex Desktop 密度的薄壳：**只投影 + 发意图**。Core 是本机 PATH 上的 [`pi`](https://github.com/badlogic/pi-mono)（`pi --mode rpc`）。Middle 把 pi Events（`agent_start` / `agent_settled` / `turn_*` / `message_*` / `tool_execution_*`）映成现有 Thread / Turn / Item。产品路径**拒绝** `thread/start`、`tool/approve` 等自制 app-server 方法。
 
-`THESEUS_LLM_API_KEY` 从启动 App 的**用户/系统环境**（或父进程）继承给 sidecar；设置卡也可选粘贴，只写入用户环境 / OS 钥匙串。没有 `--api-key`、不进 jsonl / SessionEvent / WebView 存储、**没有自动更新**、**不强制商店签名**、**没有 OAuth**。仓库和 Release 产物里都不带密钥。
+密钥与 provider **只走 pi**。壳不写 `~/.theseus` 密钥文件，不做自定义 OAuth，也不再挂自制 Theseus 确认门闩。
 
-### 本机聊一轮（源码 / 已安装都一样）
+### 安装 pi（Windows 必做）
 
-系统依赖：Rust 1.83+；macOS 用系统 WebKit；Windows 需要 WebView2。默认门闩是 `approve`（`write` / `edit` / `bash` 要人点）。
+1. 按 [pi-mono](https://github.com/badlogic/pi-mono) 的说明安装 `pi`（npm / 官方安装器均可）。
+2. 打开**新的**命令行，确认：
 
-源码树：
-
-```bash
-export THESEUS_LLM_API_KEY="..."          # 只给 sidecar，不要写进仓库
-# 保持默认：不要设 THESEUS_TOOL_APPROVAL=auto
-cargo build -p theseus-app-server
-cargo run -p theseus-desktop --features gui
+```bat
+pi --version
+pi --mode rpc
 ```
 
-已安装：双击 `Theseus.app` / 开始菜单 **Theseus** / 便携目录里的 `theseus-desktop`。窗口应直接起来，**不**弹黑控制台 / 额外 Terminal；Release GUI 默认不往 stdout 打 `UI on http://…` 之类的桥接日志。Finder 不读 `.zshrc`，双击前请把 key 写进**用户环境变量**（见下）。
+（第二条会挂起等 stdin；Ctrl+C 退出即可。）
+
+3. Windows 资源管理器启动的 GUI **不读**你当前 shell 的 PATH。把 `pi` 加到**用户或系统 PATH** 后注销或重启 Theseus。调试可设 `THESEUS_PI_BIN` 指向 `pi.exe`。
+4. 在 pi 里配好 provider / 密钥。Theseus 不会再要你把 key 贴进设置卡。
+
+找不到 `pi` 时窗口起不来，错误信息会写明 PATH 与 pi-mono 地址。
+
+### 本机聊一轮
+
+系统依赖：Rust 1.83+；macOS 用系统 WebKit；Windows 需要 WebView2 + PATH 上的 `pi`。Release GUI 使用 windows subsystem，sidecar 带 `CREATE_NO_WINDOW`，**不弹黑控制台**。
+
+```bash
+cargo run -p theseus-desktop --features gui
+# Linux 无 WebKit：
+# cargo run -p theseus-desktop -- --preview
+```
 
 在打开的窗口里验收：
 
-1. 空状态居中只有一颗 **新对话**。左栏「最近」是一行预览（不展示 `thr_*`）。顶栏是短标题 + 一枚工作区芯片；thread id 不在主路径。顶栏齿轮打开**一张**设置卡：接口地址（`THESEUS_LLM_BASE_URL` / `~/.theseus/base_url`）、模型预设、工作区路径、密钥是否已配置。输入条底栏仍是模型条（`THESEUS_LLM_MODEL` / `~/.theseus/model`）。没有 OAuth、没有设置迷宫。
-2. **流式**：发 `只回复：ping`。用户气泡、助手正文（无「你/助手」标签）。顶栏标题是首句短截断（约 28 字 + …），**不要**把整段用户输入铺进顶栏。生成中模型条左侧转圈，右侧是圆形 **停止**（方块在圆内，`turn/interrupt` → 现有 `turn/end`）。左侧时间线短刻度是回合主线索（当前回合加粗），不靠「回合 n」文案。
-3. **拒绝一次**：再发「用 write 在工作区写 `scratch.txt`，内容 `no`」。输入条被一张门闩卡顶掉（琥珀条 + 工具名 + 摘要）。点 **拒绝**。应出现工具失败行，文件不应存在。
-4. **批准一次**：再发「用 write 在工作区写 `hello.txt`，内容 `hi`」。同一张卡点 **批准**。工作区里有 `hello.txt`。
-5. **resume**：左栏预览应更新；点另一行再点回来，历史还在（`thread/resume`）。
-
-无密钥时第 2 步会出一条短条（「未配置 THESEUS_LLM_API_KEY」），log 不写 turn。
-
-开发脚手架（需 `cargo install tauri-cli --version "^2.2"`，无需 npm）：`cd crates/theseus-desktop && cargo tauri dev --features gui`。
+1. 空状态居中 **新对话**。左栏「最近」是标题 + 相对时间（预览可选）。点一行 `switch_session` 恢复。
+2. **流式**：发一句话。`message_update` 按约 16–32ms / rAF 批量上 DOM。工具是一行标题+摘要，点开才见正文。
+3. **停止**：生成中右侧圆形停止发 `clear_queue` + `abort`。Stop 与「已停止」对齐 `agent_settled` / `isStreaming:false`。
+4. 左侧时间线刻度可跳回合。
 
 ### 从 GitHub Releases 下载（未签名）
 
-推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑现有的 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test，不交叉编译桌面包。
+推送已有的 `v*` 标签后，[`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml) 会在 **macos-latest** 和 **windows-latest** 本机 runner 上跑 `python3 packaging/build-desktop.py`，把安装包挂到该标签的 [Release](https://github.com/Q-xuan/theseus/releases)。Linux 工作流仍只做 check / test。
 
 1. 打开 [Releases](https://github.com/Q-xuan/theseus/releases)，选对应标签。
-2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.7.1**，不一定等于 git 标签）：
-   - macOS：`Theseus_0.7.1_aarch64.dmg`（`macos-latest` 现为 Apple Silicon）；或 `Theseus_0.7.1_aarch64.app.zip`，解出 `Theseus.app` 拖进「应用程序」
-   - Windows：`Theseus_0.7.1_x64-setup.exe`（当前用户 NSIS）
-3. **未签名**：
-   - macOS Gatekeeper 可能拦截首次打开：右键图标 → **打开**（不要双击一次被拦就放弃）
-   - Windows SmartScreen 可能提示未知发布者：**更多信息** → **仍要运行**
-4. 密钥从用户/系统环境变量 `THESEUS_LLM_API_KEY` 读取，或在设置卡粘贴（只写入用户环境 / 钥匙串）。不要把 key 写进仓库或 `.env`。
+2. 下载（文件名跟 `tauri.conf.json` 的 `version`，当前是 **0.8.0**）：
+   - macOS：`Theseus_0.8.0_aarch64.dmg` 或 `Theseus_0.8.0_aarch64.app.zip`
+   - Windows：`Theseus_0.8.0_x64-setup.exe`（当前用户 NSIS）
+3. **未签名**：macOS 右键 → 打开；Windows SmartScreen → 更多信息 → 仍要运行。
+4. 先装好 `pi` 并加入 PATH，再双击 Theseus。
 
-维护者：先审查再**由人**推 `v*` 标签（工作流不会创建标签）。已有标签可在 Actions 里对 `release-desktop` 做 `workflow_dispatch`，**必须**填一个已存在的 tag；不接受空 tag，以免误建 Release。
+维护者：先审查再**由人**推 `v*` 标签（本仓库代理不会打 tag）。已有标签可 `workflow_dispatch`。
 
-### v0.5 打包：本机安装器 / 便携包
-
-在 **macOS 或 Windows** 上（要打哪边就在哪边编；Linux 交叉打不出能用的 `.app` / NSIS）：
+### v0.8 打包
 
 ```bash
 cargo install tauri-cli --version "^2.2"
 python3 packaging/build-desktop.py
 ```
 
-| 产物 | 路径（相对仓库根） |
+| 产物 | 路径 |
 | --- | --- |
 | macOS `.app` | `target/release/bundle/macos/Theseus.app` |
-| macOS DMG | `target/release/bundle/dmg/Theseus_0.7.1_*.dmg` |
-| Windows NSIS（当前用户，未签名） | `target/release/bundle/nsis/Theseus_0.7.1_*-setup.exe` |
-| 便携（两二进制同目录） | `python3 packaging/build-desktop.py --portable` → `dist/theseus-portable-<triple>/` |
+| macOS DMG | `target/release/bundle/dmg/Theseus_0.8.0_*.dmg` |
+| Windows NSIS | `target/release/bundle/nsis/Theseus_0.8.0_x64-setup.exe` |
 
-包内嵌 `theseus-app-server`。关窗走 `shutdown`，超时杀进程组，不留孤儿。macOS 本机 ad-hoc 签名（`signingIdentity: "-"`）；Windows `certificateThumbprint` 为空。第一次被 Gatekeeper 拦：右键 → 打开。Windows SmartScreen 可能警告未知发布者。详细步骤与 CI 发版见 [`packaging/README.md`](packaging/README.md)。
+包内**不**嵌 `theseus-app-server`。关窗关 stdin，超时杀进程组。详见 [`packaging/README.md`](packaging/README.md)。
 
-### 环境变量（安装后双击也只认这些）
+### 环境变量
 
 | 变量 | 作用 |
 | --- | --- |
-| `THESEUS_LLM_API_KEY` | sidecar 调模型；空则 `turn/start` 失败、不写 turn。设置卡可粘贴，只写入用户环境 / 钥匙串。`PI_LLM_API_KEY` **已弃用**，仅短读兼容 |
-| `THESEUS_LLM_BASE_URL` | sidecar 接口地址；设置卡写入当前进程 + `~/.theseus/base_url`。`PI_LLM_BASE_URL` **已弃用**，仅短读兼容 |
-| `THESEUS_LLM_MODEL` | sidecar 默认模型；桌面输入条底栏 / 设置卡可读可写。`PI_LLM_MODEL` **已弃用**，仅短读兼容。UI 改名会写入 `~/.theseus/model`（不是密钥），新对话经已有的 `thread/start.model` 带上 |
-| `THESEUS_TOOL_APPROVAL` | 默认 `approve`。`PI_TOOL_APPROVAL` **已弃用**，仅短读兼容 |
-| `THESEUS_SESSIONS_DIR` / `THESEUS_HOME` | jsonl 位置，默认 `~/.theseus/sessions`（Windows：`%USERPROFILE%\.theseus\sessions`）。`PI_*` / `~/.pi-app` **已弃用**，仅短读兼容 |
-| `THESEUS_APP_SERVER_BIN` | 调试用覆盖 sidecar 路径。`PI_APP_SERVER_BIN` **已弃用**，仅短读兼容 |
+| `THESEUS_PI_BIN` | 覆盖 `pi` 路径。未设则搜 PATH |
+| `THESEUS_DESKTOP_PORT` | `--preview` 端口，默认 `43173` |
 
-**Windows**：设置卡粘贴会 `setx` 用户变量；也可：系统 → 关于 → 高级系统设置 → 环境变量 → **用户变量** 新建 `THESEUS_LLM_API_KEY`。完全退出 Theseus 再开（必要时注销，让 Explorer 重新继承）。
+密钥、模型、provider 全部由 pi 自己的配置读取。
 
-**macOS**：Finder 启动的 App **不**读 `~/.zshrc`。设置卡粘贴写入钥匙串 + `launchctl setenv`。也可在登录会话里 `launchctl setenv THESEUS_LLM_API_KEY '...'` 后再从 Dock 打开；或直接跑 `/Applications/Theseus.app/Contents/MacOS/Theseus`（继承当前 shell）。`open -a Theseus` 传不进 export。没有 OAuth。
-
-### 生命周期
-
-开 App → 定位并拉起包内（或旁边的）`theseus-app-server`（stdin/stdout）→ 先发 `initialize` → 再开窗口。关 App / Ctrl-C → `shutdown`，超时则杀进程组，不留孤儿。
-
-定位顺序：`THESEUS_APP_SERVER_BIN` → 与本可执行文件同目录（以及 `.app` 的 `Contents/MacOS` / `Resources`）的 `theseus-app-server`（可带 target triple 后缀）→ 工作区 `target/debug|release`。
-
-### Linux 冒烟（`--preview`，不挡打包）
-
-`cargo check` / `cargo test` **不**开 `gui` feature。无 WebKit 时用同一层皮：
+### Linux 冒烟
 
 ```bash
-cargo build -p theseus-app-server
-cargo run -p theseus-desktop -- --preview
-# http://127.0.0.1:43173   可选 THESEUS_DESKTOP_PORT
-python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交叉编译
+cargo test -p theseus-desktop
+cargo run -p theseus-desktop -- --preview   # 需要本机有 pi，或 THESEUS_PI_BIN 指向测试夹具
+python3 packaging/build-desktop.py --check
 ```
-
-只绑 127.0.0.1。stdio↔WS 是过渡胶水，不是远程控制。Linux CI **不能**产出 macOS/Windows 安装包；能绿的是上面的 `check` / `test` / `--preview`。工作流：[`.github/workflows/linux.yml`](.github/workflows/linux.yml)（保持 check / preview，不改）。桌面包只在 macOS / Windows runner 上打，见 [`.github/workflows/release-desktop.yml`](.github/workflows/release-desktop.yml)。
 
 ### 客户端皮对照（模块级，不是像素）
 
@@ -358,15 +341,14 @@ python3 packaging/build-desktop.py --check    # 核对 tauri 包配置，不交�
 | 我们 | 对照 |
 | --- | --- |
 | 左栏 240 / 12px 边距 / 38×12「新对话」 | dsh `ui-sidebar` `SidebarRoot.module.css` |
-| 「最近」一行预览 + 选中底 + 等待琥珀点 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
+| 「最近」标题 + 相对时间 + 选中底 | dsh `ui-workspace` 会话行；Codex 左栏 chats |
 | 左侧时间线刻度（当前加粗）/ 用户气泡 / 助手正文（无角色标签） | dsh `ui-conversation` ChatView；Codex thread |
-| 输入条底栏模型名 + 一张设置卡（地址 / 模型 / 工作区 / 密钥状态） | 薄设置，不是 Codex 设置墙 |
+| 输入条底栏模型名（只读，来自 pi `get_state`）+ 一张工作区卡 | 薄设置；模型/密钥墙推迟 |
 | 工具名芯片 + 一行摘要，点开才见全文 | dsh `ui-tool` GenericToolCard |
-| 输入条被一张门闩卡顶掉：工具名 + 摘要 + 拒/批 | dsh `ApprovalPanel`（composer takeover） |
 
-不复刻闭源 Codex.app 像素，不上第二套前端框架，不加搜索墙 / 工作区树 / 设置迷宫。`theseus-web/static` 仍是协议冒烟页，不是桌面终态。
+不复刻闭源 Codex.app 像素，不上第二套前端框架，不加搜索墙 / 工作区树 / 设置迷宫。自制 Theseus 确认门闩已从产品路径拿掉。`theseus-web/static` 仍是协议冒烟页，不是桌面终态。
 
-冒烟：`cargo test -p theseus-desktop`（含打包合约：`bundle.active`、内嵌 sidecar、无 updater）。
+冒烟：`cargo test -p theseus-desktop`（含打包合约：`0.8.0`、PATH `pi`、`Theseus_*_x64-setup.exe`、无 updater）。
 
 ## 假设（选了更小的一侧）
 

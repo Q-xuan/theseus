@@ -5,11 +5,7 @@
 
 use std::net::SocketAddr;
 
-use theseus_core::default_sessions_dir;
-use theseus_desktop::{
-    key_is_set, Sidecar, DEFAULT_PREVIEW_PORT, ENV_API_KEY, ENV_PREVIEW_PORT,
-    ENV_PREVIEW_PORT_LEGACY,
-};
+use theseus_desktop::{Sidecar, DEFAULT_PREVIEW_PORT, ENV_PI_BIN, ENV_PREVIEW_PORT, ENV_PREVIEW_PORT_LEGACY};
 
 fn main() {
     let mut args = std::env::args().skip(1);
@@ -34,7 +30,7 @@ fn main() {
 fn print_help() {
     eprintln!(
         "\
-theseus-desktop — Tauri thin shell over the theseus-app-server stdio sidecar
+theseus-desktop — Tauri thin shell over `pi --mode rpc`
 
 Usage:
   theseus-desktop              macOS/Windows (gui feature): native window
@@ -43,20 +39,19 @@ Usage:
   theseus-desktop --gui        native window (requires --features gui)
   theseus-desktop --help
 
-The sidecar is theseus-app-server (stdio JSON-RPC). Locate order:
-  1. {bin}
-  2. next to this executable (packaged .app / NSIS / portable folder)
-  3. target/debug|release (source-tree cargo run)
+The sidecar is `pi --mode rpc` (JSONL). Locate order:
+  1. ${bin} (explicit path)
+  2. `pi` on PATH
 
-{key} is inherited from the user/system environment, the parent
-process, or an optional paste on the one settings card (user env /
-OS keychain only — never the repo, jsonl, or WebView storage).
-No OAuth. No auto-update.
+Windows needs `pi` on PATH (https://github.com/badlogic/pi-mono).
+Release GUI uses the windows subsystem and CREATE_NO_WINDOW — no black console.
+
+Keys and providers stay inside pi. This shell does not write ~/.theseus key
+files and does not speak the theseus-app-server protocol on the product path.
 
 Preview port: ${port} or {default} (127.0.0.1 only).
 ",
-        bin = theseus_desktop::ENV_SERVER_BIN,
-        key = ENV_API_KEY,
+        bin = ENV_PI_BIN,
         port = ENV_PREVIEW_PORT,
         default = DEFAULT_PREVIEW_PORT,
     );
@@ -90,17 +85,10 @@ fn run_preview() {
         }
     };
 
-    eprintln!("theseus-desktop sidecar: {}", sidecar.path().display());
-    eprintln!("sessions: {}", default_sessions_dir().display());
+    eprintln!("theseus-desktop sidecar: {} --mode rpc", sidecar.path().display());
     eprintln!(
         "theseus-desktop preview http://{addr}  (127.0.0.1 only; stdio↔WS bridge is transitional)"
     );
-    theseus_desktop::hydrate_process_key();
-    if !key_is_set() {
-        eprintln!(
-            "{ENV_API_KEY} is not set; paste it on the settings card or export it. The key is never shown in the UI."
-        );
-    }
 
     let runtime = tokio::runtime::Builder::new_multi_thread()
         .enable_all()

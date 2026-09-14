@@ -1,11 +1,9 @@
 use tauri::{RunEvent, WebviewUrl, WebviewWindowBuilder};
 
 use crate::sidecar::Sidecar;
-use crate::{hydrate_process_key, key_is_set, ENV_API_KEY};
 
 /// Open a native window onto the loopback client. Sidecar stays on stdio.
 pub fn run_gui() {
-    hydrate_process_key();
     let (sidecar, rx) = match Sidecar::start() {
         Ok(pair) => pair,
         Err(err) => {
@@ -14,17 +12,10 @@ pub fn run_gui() {
         }
     };
     if crate::verbose_stdio() {
-        eprintln!("theseus-desktop sidecar: {}", sidecar.path().display());
         eprintln!(
-            "sessions: {}",
-            theseus_core::default_sessions_dir().display()
+            "theseus-desktop sidecar: {} --mode rpc",
+            sidecar.path().display()
         );
-        if !key_is_set() {
-            eprintln!(
-                "{ENV_API_KEY} is not set on this process; the sidecar inherits that. \
-                 turn/start will error until you export it and restart. The key is never shown in the UI."
-            );
-        }
     }
 
     let runtime = tokio::runtime::Builder::new_multi_thread()

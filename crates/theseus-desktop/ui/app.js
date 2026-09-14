@@ -1,4 +1,4 @@
-/* Thin JSON-RPC client. Projects Thread / Turn / Item + one gate. No loop. */
+/* Thin client. Projects Thread / Turn / Item. Sends pi RPC intents. No loop. */
 (() => {
   const $ = (id) => document.getElementById(id);
   const logEl = $("log");
@@ -13,11 +13,6 @@
   const sessionsEl = $("sessions");
   const sessionsEmptyEl = $("sessions-empty");
   const formEl = $("composer");
-  const approvalEl = $("approval");
-  const approvalToolEl = $("approval-tool");
-  const approvalSummaryEl = $("approval-summary");
-  const approvalApproveEl = $("approval-approve");
-  const approvalRejectEl = $("approval-reject");
   const railEl = $("rail");
   const toggleRailEl = $("toggle-rail");
   const timelineEl = $("timeline");
@@ -25,44 +20,43 @@
   const modelStripEl = $("model-strip");
   const modelNameEl = $("model-name");
   const modelVariantEl = $("model-variant");
-  const modelPopEl = $("model-pop");
-  const modelInputEl = $("model-input");
   const modelBusyEl = $("model-busy");
   const stopEl = $("stop");
   const openPrefsEl = $("open-prefs");
   const closePrefsEl = $("close-prefs");
   const prefsMaskEl = $("prefs-mask");
-  const prefsBaseEl = $("prefs-base-url");
-  const prefsModelEl = $("prefs-model");
   const prefsWorkspaceEl = $("prefs-workspace");
   const prefsPickEl = $("prefs-pick-workspace");
-  const prefsKeyEl = $("prefs-key");
-  const prefsKeyStatusEl = $("prefs-key-status");
   const prefsSaveEl = $("prefs-save");
   const workspaceChipEl = $("workspace-chip");
 
   let ws = null;
   let nextId = 1;
   const pending = new Map();
-  let threadId = null;
-  let threadPreview = "";
+  let sessionId = null;
+  let sessionPath = null;
+  let sessionPreview = "";
   let busy = false;
+  let wantsStop = false;
   const items = new Map();
-  let approval = null;
   let recent = [];
   let turnCount = 0;
   let currentModel = "";
   let currentWorkspace = "";
-  let keyConfigured = false;
   let activeTurn = 0;
+  let pendingDeltas = new Map();
+  let flushTimer = 0;
+  const BATCH_MS = 24;
 
   function readableError(err) {
     const raw = (err && err.message) || (typeof err === "string" ? err : "");
-    if (/API_KEY/i.test(raw) || (/is not set/i.test(raw) && /LLM/i.test(raw))) {
-      return "未配置 THESEUS_LLM_API_KEY";
+    if (/not found on PATH|pi --mode rpc/i.test(raw)) {
+      return "未找到 pi。请安装 pi 并加入 PATH：https://github.com/badlogic/pi-mono";
     }
-    const cleaned = raw.replace(/THESEUS_[A-Z0-9_]+|PI_[A-Z0-9_]+/g, "配置");
-    return cleaned || "请求失败。";
+    if (/API_KEY|provider|auth|unauthor/i.test(raw)) {
+      return "pi 未配置密钥或模型。请在 pi 里完成 provider 设置。";
+    }
+    return raw || "请求失败。";
   }
 
   const TITLE_MAX = 28;
@@ -77,7 +71,9 @@
 
   function shortLabel(text, fallback) {
     const sentence = firstSentence(text);
-    if (!sentence || /^thr_[A-Za-z0-9_-]+$/.test(sentence)) return fallback || "新对话";
+    if (!sentence || /^sess[_A-Za-z0-9-]+$/.test(sentence) || /^thr_[A-Za-z0-9_-]+$/.test(sentence)) {
+      return fallback || "新对话";
+    }
     const chars = Array.from(sentence);
     if (chars.length <= TITLE_MAX) return sentence;
     return `${chars.slice(0, TITLE_MAX).join("")}…`;
@@ -100,15 +96,16 @@
   }
 
   function setTitle(raw, fallback) {
-    titleEl.textContent = shortLabel(raw, fallback || (threadId ? "新对话" : "未打开对话"));
+    titleEl.textContent = shortLabel(raw, fallback || (sessionId ? "新对话" : "未打开对话"));
   }
 
-  function showThreadId(id) {
-    threadId = id || null;
-    copyThreadIdEl.classList.toggle("hidden", !threadId);
-    copyThreadIdEl.disabled = !threadId;
-    copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
-    titleEl.title = threadId || "";
+  function showSession(id, path) {
+    sessionId = id || null;
+    sessionPath = path || sessionPath || null;
+    copyThreadIdEl.classList.toggle("hidden", !sessionId);
+    copyThreadIdEl.disabled = !sessionId;
+    copyThreadIdEl.setAttribute("aria-label", "复制 session id");
+    titleEl.title = sessionId || "";
     syncEmpty();
   }
 
@@ -159,7 +156,7 @@
     modelBusyEl.classList.toggle("on", on);
     sendEl.classList.toggle("hidden", on);
     stopEl.classList.toggle("hidden", !on);
-    const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy && !approval);
+    const ready = Boolean(ws && ws.readyState === 1 && sessionId && !busy);
     inputEl.disabled = !ready;
     sendEl.disabled = !ready;
     stopEl.disabled = !on;
@@ -170,6 +167,7 @@
 
   function clearBusyChrome() {
     busy = false;
+    wantsStop = false;
     modelBusyEl.classList.remove("on");
     stopEl.classList.add("hidden");
     stopEl.disabled = true;
@@ -197,33 +195,13 @@
 
   function renderModel() {
     const { name, variant } = splitModelLabel(currentModel);
-    modelNameEl.textContent = name || "模型";
+    modelNameEl.textContent = name || "pi";
     modelVariantEl.textContent = variant;
-    modelInputEl.value = currentModel;
-  }
-
-  function closeModelPop() {
-    modelPopEl.classList.add("hidden");
-    modelStripEl.setAttribute("aria-expanded", "false");
-  }
-
-  function openModelPop() {
-    modelPopEl.classList.remove("hidden");
-    modelStripEl.setAttribute("aria-expanded", "true");
-    modelInputEl.value = currentModel;
-    modelInputEl.focus();
-    modelInputEl.select();
   }
 
   function applySettingsPayload(data) {
     if (data && data.model) currentModel = data.model;
     if (data && data.workspace) renderWorkspace(data.workspace);
-    if (data && typeof data.keyConfigured === "boolean") keyConfigured = data.keyConfigured;
-    if (data && data.baseUrl && prefsBaseEl) prefsBaseEl.value = data.baseUrl;
-    if (prefsModelEl) prefsModelEl.value = currentModel;
-    if (prefsKeyStatusEl) {
-      prefsKeyStatusEl.textContent = keyConfigured ? "已配置" : "未配置";
-    }
     renderModel();
   }
 
@@ -241,28 +219,17 @@
   function openPrefs() {
     document.body.classList.add("prefs-open");
     prefsMaskEl.classList.remove("hidden");
-    prefsModelEl.value = currentModel;
     prefsWorkspaceEl.value = currentWorkspace;
-    prefsKeyEl.value = "";
-    prefsKeyStatusEl.textContent = keyConfigured ? "已配置" : "未配置";
-    prefsBaseEl.focus();
+    prefsWorkspaceEl.focus();
   }
 
   function closePrefs() {
     document.body.classList.remove("prefs-open");
     prefsMaskEl.classList.add("hidden");
-    prefsKeyEl.value = "";
   }
 
   async function savePrefs() {
-    const payload = {
-      baseUrl: prefsBaseEl.value.trim(),
-      model: prefsModelEl.value.trim(),
-      workspace: prefsWorkspaceEl.value.trim(),
-    };
-    const pasted = prefsKeyEl.value.trim();
-    if (pasted) payload.key = pasted;
-    prefsKeyEl.value = "";
+    const payload = { workspace: prefsWorkspaceEl.value.trim() };
     try {
       const res = await fetch("/settings", {
         method: "PUT",
@@ -275,25 +242,6 @@
     } catch {
       showBanner("设置没存上。");
     }
-  }
-
-  async function saveModel(raw) {
-    const name = String(raw || "").trim();
-    if (!name) return;
-    try {
-      const res = await fetch("/model", {
-        method: "PUT",
-        headers: { "content-type": "application/json" },
-        body: JSON.stringify({ model: name }),
-      });
-      const data = await res.json();
-      if (data && data.model) currentModel = data.model;
-      else currentModel = name;
-    } catch {
-      currentModel = name;
-    }
-    renderModel();
-    closeModelPop();
   }
 
   function setActiveTurn(n) {
@@ -357,8 +305,20 @@
     }
   }
 
+  function relativeTime(ms) {
+    const t = Number(ms);
+    if (!t) return "";
+    const diff = Date.now() - t;
+    if (diff < 45 * 1000) return "刚刚";
+    if (diff < 60 * 60 * 1000) return `${Math.max(1, Math.round(diff / 60000))} 分钟前`;
+    if (diff < 24 * 60 * 60 * 1000) return `${Math.max(1, Math.round(diff / 3600000))} 小时前`;
+    if (diff < 7 * 24 * 60 * 60 * 1000) return `${Math.max(1, Math.round(diff / 86400000))} 天前`;
+    const d = new Date(t);
+    return `${d.getMonth() + 1}/${d.getDate()}`;
+  }
+
   function syncEmpty() {
-    emptyEl.classList.toggle("hidden", Boolean(threadId) || logEl.children.length > 0);
+    emptyEl.classList.toggle("hidden", Boolean(sessionId) || logEl.children.length > 0);
   }
 
   function upsert(item) {
@@ -405,6 +365,26 @@
     li.scrollIntoView({ block: "end" });
   }
 
+  function queueAgentDelta(id, delta) {
+    const prev = items.get(id) || { type: "agentMessage", id, text: "" };
+    prev.text = (prev.text || "") + delta;
+    items.set(id, prev);
+    pendingDeltas.set(id, prev);
+    if (flushTimer) return;
+    const run = () => {
+      flushTimer = 0;
+      pendingDeltas.forEach((item) => upsert(item));
+      pendingDeltas.clear();
+    };
+    if (typeof requestAnimationFrame === "function") {
+      flushTimer = requestAnimationFrame(() => {
+        flushTimer = setTimeout(run, 0);
+      });
+    } else {
+      flushTimer = setTimeout(run, BATCH_MS);
+    }
+  }
+
   function addTurnMark() {
     const n = turnCount;
     const li = document.createElement("li");
@@ -432,52 +412,12 @@
 
   function clearLog() {
     items.clear();
+    pendingDeltas.clear();
     logEl.innerHTML = "";
     turnCount = 0;
     activeTurn = 0;
     timelineEl.innerHTML = "";
-    hideApproval();
     syncEmpty();
-  }
-
-  function hideApproval() {
-    approval = null;
-    approvalEl.classList.add("hidden");
-    approvalToolEl.textContent = "";
-    approvalSummaryEl.textContent = "";
-    formEl.classList.remove("hidden");
-    renderSessions();
-    const ready = Boolean(ws && ws.readyState === 1 && threadId && !busy);
-    inputEl.disabled = !ready;
-    sendEl.disabled = !ready;
-    stopEl.disabled = !busy;
-  }
-
-  function showApproval(params) {
-    approval = params;
-    approvalToolEl.textContent = params.tool || "tool";
-    approvalSummaryEl.textContent =
-      params.summary || briefArgs(params.arguments) || pretty(JSON.stringify(params.arguments || {}));
-    approvalEl.classList.remove("hidden");
-    formEl.classList.add("hidden");
-    approvalApproveEl.disabled = false;
-    approvalRejectEl.disabled = false;
-    approvalEl.scrollIntoView({ block: "end" });
-    renderSessions();
-  }
-
-  async function decideApproval(method) {
-    if (!approval || !threadId) return;
-    const callId = approval.callId;
-    approvalApproveEl.disabled = true;
-    approvalRejectEl.disabled = true;
-    try {
-      await rpc(method, { threadId, callId });
-    } catch (err) {
-      showBanner(readableError(err));
-      approvalApproveEl.disabled = false;
-      approvalRejectEl.disabled = false;
-    }
   }
 
   function renderSessions() {
@@ -486,31 +426,31 @@
     for (const t of recent) {
       const btn = document.createElement("button");
       btn.type = "button";
-      btn.className = "session" + (t.id === threadId ? " active" : "");
+      btn.className = "session" + (t.id === sessionId || t.path === sessionPath ? " active" : "");
       btn.dataset.id = t.id;
-      const waiting = Boolean(approval && approval.threadId === t.id);
+      const title = shortLabel(t.title || t.preview, "新对话");
+      const time = relativeTime(t.updatedAt);
       btn.innerHTML = `<span class="session-dot${
-        waiting ? "" : " off"
-      }"></span><span class="session-preview">${escapeHtml(
-        shortLabel(t.preview, "新对话")
-      )}</span>`;
+        busy && (t.id === sessionId || t.path === sessionPath) ? "" : " off"
+      }"></span><span class="session-main"><span class="session-preview">${escapeHtml(
+        title
+      )}</span><span class="session-time">${escapeHtml(time)}</span></span>`;
       btn.addEventListener("click", () => {
         railEl.classList.remove("open");
-        resumeThread(t.id).catch((err) => {
-          showBanner(readableError(err) || "打不开这个线程。");
+        resumeSession(t).catch((err) => {
+          showBanner(readableError(err) || "打不开这个会话。");
         });
       });
       sessionsEl.appendChild(btn);
     }
   }
 
-  function applyThread(result) {
-    const thread = result && result.thread;
+  function applyThread(thread, extra) {
     if (!thread) return;
-    showThreadId(thread.id);
-    threadPreview = shortLabel(thread.preview, "新对话");
-    setTitle(thread.preview, "新对话");
-    renderWorkspace(thread.cwd || currentWorkspace);
+    showSession(thread.id || (extra && extra.sessionId), thread.path || (extra && extra.sessionFile));
+    sessionPreview = shortLabel(thread.preview || thread.title, "新对话");
+    setTitle(thread.preview || thread.title, "新对话");
+    if (thread.cwd) renderWorkspace(thread.cwd);
     clearLog();
     for (const turn of thread.turns || []) {
       turnCount += 1;
@@ -524,15 +464,44 @@
     renderSessions();
   }
 
+  function applyState(state) {
+    if (!state) return;
+    if (state.sessionId) showSession(state.sessionId, state.sessionFile);
+    if (state.sessionFile) sessionPath = state.sessionFile;
+    if (state.sessionName) {
+      sessionPreview = shortLabel(state.sessionName, "新对话");
+      setTitle(state.sessionName, "新对话");
+    }
+    if (state.model) {
+      currentModel = state.model.id || state.model.name || currentModel;
+      renderModel();
+    }
+    if (state.isStreaming === true) setBusy(true);
+    if (state.isStreaming === false) setBusy(false);
+  }
+
   function onNotify(msg) {
     switch (msg.method) {
+      case "agent_start": {
+        setBusy(true);
+        break;
+      }
+      case "agent_settled": {
+        const streaming = msg.params && msg.params.isStreaming;
+        if (streaming === false || streaming == null) {
+          if (wantsStop) showBanner("已停止", "warn");
+          wantsStop = false;
+          setBusy(false);
+          loadRecent();
+        }
+        break;
+      }
       case "thread/started": {
         const thread = msg.params && msg.params.thread;
         if (!thread) return;
-        showThreadId(thread.id);
-        threadPreview = shortLabel(thread.preview, "新对话");
+        showSession(thread.id, thread.path);
+        sessionPreview = shortLabel(thread.preview, "新对话");
         setTitle(thread.preview, "新对话");
-        if (thread.cwd) renderWorkspace(thread.cwd);
         break;
       }
       case "turn/started": {
@@ -547,7 +516,7 @@
         if (item && item.type === "userMessage") {
           const text = userItemText(item);
           if (text) {
-            threadPreview = shortLabel(text, "新对话");
+            sessionPreview = shortLabel(text, "新对话");
             setTitle(text, "新对话");
           }
         }
@@ -556,30 +525,15 @@
       case "item/agentMessage/delta": {
         const id = msg.params && msg.params.itemId;
         const delta = (msg.params && msg.params.delta) || "";
-        if (!id) return;
-        const prev = items.get(id) || { type: "agentMessage", id, text: "" };
-        prev.text = (prev.text || "") + delta;
-        upsert(prev);
-        break;
-      }
-      case "item/tool/approval/request": {
-        if (msg.params) showApproval(msg.params);
-        break;
-      }
-      case "item/tool/approval/resolved": {
-        hideApproval();
+        if (!id || !delta) return;
+        queueAgentDelta(id, delta);
         break;
       }
       case "turn/completed": {
         const turn = msg.params && msg.params.turn;
         if (turn && turn.status === "failed") {
-          showBanner("这一轮失败了。服务端已经收口，没有半截助手消息。");
-        } else if (turn && (turn.status === "aborted" || turn.status === "interrupted")) {
-          showBanner("这一轮已停止。", "warn");
+          showBanner("这一轮失败了。");
         }
-        hideApproval();
-        setBusy(false);
-        loadRecent();
         break;
       }
       default:
@@ -599,56 +553,76 @@
     if (!ws || ws.readyState !== 1) return;
     let result;
     try {
-      result = await rpc("thread/list", { limit: 20 });
+      result = await rpc("list_sessions", {});
     } catch (err) {
       showBanner(readableError(err));
       return;
     }
-    recent = (result && result.threads) || [];
+    recent = (result && result.sessions) || [];
     renderSessions();
   }
 
-  async function startThread() {
+  async function refreshState() {
+    const state = await rpc("get_state", {});
+    applyState(state);
+    return state;
+  }
+
+  async function startSession() {
     showBanner("");
     clearLog();
-    showThreadId(null);
+    showSession(null);
     setTitle("新对话", "新对话");
-    const params = {};
-    if (currentModel) params.model = currentModel;
-    if (currentWorkspace) params.cwd = currentWorkspace;
-    const result = await rpc("thread/start", params);
-    applyThread(result);
+    await rpc("new_session", {});
+    const state = await refreshState();
+    showSession(state.sessionId, state.sessionFile);
+    setBusy(false);
+    inputEl.focus();
     await loadRecent();
   }
 
-  async function resumeThread(id) {
-    if (!id) return;
+  async function resumeSession(row) {
+    if (!row || !row.path) return;
     showBanner("");
-    const result = await rpc("thread/resume", { threadId: id });
-    applyThread(result);
+    await rpc("switch_session", { sessionPath: row.path });
+    let projected;
+    try {
+      projected = await rpc("get_messages", {});
+    } catch {
+      projected = await rpc("get_entries", {});
+    }
+    const state = await refreshState().catch(() => ({}));
+    applyThread(projected && projected.thread, {
+      sessionId: row.id || (state && state.sessionId),
+      sessionFile: row.path,
+    });
   }
 
-  async function sendTurn(text) {
-    if (!threadId || busy || approval) return;
+  async function sendPrompt(text) {
+    if (!sessionId || busy) return;
     showBanner("");
     setTitle(text, "新对话");
-    threadPreview = shortLabel(text, "新对话");
+    sessionPreview = shortLabel(text, "新对话");
+    wantsStop = false;
     setBusy(true);
     try {
-      await rpc("turn/start", {
-        threadId,
-        input: [{ type: "text", text }],
-      });
+      await rpc("prompt", { message: text });
+      const name = shortLabel(text, "");
+      if (name && name !== "新对话") {
+        rpc("set_session_name", { name }).catch(() => {});
+      }
     } catch (err) {
-      showBanner(readableError(err), /API_KEY|is not set/i.test((err && err.message) || "") ? "warn" : undefined);
+      showBanner(readableError(err), "warn");
       setBusy(false);
     }
   }
 
   async function stopTurn() {
-    if (!threadId || !busy) return;
+    if (!busy) return;
+    wantsStop = true;
     try {
-      await rpc("turn/interrupt", { threadId });
+      await rpc("clear_queue", {}).catch(() => {});
+      await rpc("abort", {});
     } catch (err) {
       showBanner(readableError(err));
       setBusy(false);
@@ -657,12 +631,22 @@
 
   function connect() {
     setTitle("未打开对话", "未打开对话");
-    showThreadId(null);
+    showSession(null);
     const proto = location.protocol === "https:" ? "wss" : "ws";
     ws = new WebSocket(`${proto}://${location.host}/ws`);
     ws.onopen = () => {
       setBusy(false);
-      loadRecent().catch(() => {});
+      refreshState()
+        .then((state) => {
+          if (state && state.messageCount > 0) {
+            return rpc("get_messages", {}).then((projected) => {
+              applyThread(projected && projected.thread, state);
+            });
+          }
+          if (state && state.sessionId) showSession(state.sessionId, state.sessionFile);
+          return loadRecent();
+        })
+        .catch(() => {});
     };
     ws.onmessage = (ev) => {
       let msg;
@@ -697,7 +681,7 @@
     const text = inputEl.value.trim();
     if (!text) return;
     inputEl.value = "";
-    sendTurn(text);
+    sendPrompt(text);
   });
 
   inputEl.addEventListener("keydown", (e) => {
@@ -707,19 +691,12 @@
     }
   });
 
-  approvalApproveEl.addEventListener("click", () => {
-    decideApproval("tool/approve");
-  });
-  approvalRejectEl.addEventListener("click", () => {
-    decideApproval("tool/reject");
-  });
-
   stopEl.addEventListener("click", () => {
     stopTurn();
   });
 
   function startFromCta() {
-    startThread().catch((err) => {
+    startSession().catch((err) => {
       showBanner(readableError(err) || "开不了新对话。");
     });
   }
@@ -741,11 +718,6 @@
       .then((data) => applySettingsPayload(data))
       .catch(() => {});
   });
-  document.querySelectorAll(".prefs-preset").forEach((btn) => {
-    btn.addEventListener("click", () => {
-      prefsModelEl.value = btn.dataset.model || "";
-    });
-  });
   document.addEventListener("keydown", (e) => {
     if (e.key === "Escape" && !prefsMaskEl.classList.contains("hidden")) {
       closePrefs();
@@ -756,42 +728,16 @@
     railEl.classList.toggle("open");
   });
 
-  modelStripEl.addEventListener("click", (e) => {
-    e.preventDefault();
-    if (modelPopEl.classList.contains("hidden")) openModelPop();
-    else closeModelPop();
-  });
-
-  modelInputEl.addEventListener("keydown", (e) => {
-    if (e.key === "Enter") {
-      e.preventDefault();
-      saveModel(modelInputEl.value);
-    } else if (e.key === "Escape") {
-      closeModelPop();
-    }
-  });
-
-  modelPopEl.querySelectorAll(".model-choice").forEach((btn) => {
-    btn.addEventListener("click", () => saveModel(btn.dataset.model));
-  });
-
-  document.addEventListener("click", (e) => {
-    if (!modelPopEl.classList.contains("hidden")) {
-      const wrap = modelStripEl.closest(".model-wrap");
-      if (wrap && !wrap.contains(e.target)) closeModelPop();
-    }
-  });
-
   threadEl.addEventListener("scroll", syncActiveTurn, { passive: true });
 
   copyThreadIdEl.addEventListener("click", () => {
-    if (!threadId) return;
-    copyText(threadId)
+    if (!sessionId) return;
+    copyText(sessionId)
       .then(() => {
         copyThreadIdEl.setAttribute("aria-label", "已复制");
         setTimeout(() => {
           if (copyThreadIdEl.getAttribute("aria-label") === "已复制") {
-            copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
+            copyThreadIdEl.setAttribute("aria-label", "复制 session id");
           }
         }, 1200);
       })
@@ -799,7 +745,7 @@
         copyThreadIdEl.setAttribute("aria-label", "复制失败");
         setTimeout(() => {
           if (copyThreadIdEl.getAttribute("aria-label") === "复制失败") {
-            copyThreadIdEl.setAttribute("aria-label", "复制 thread id");
+            copyThreadIdEl.setAttribute("aria-label", "复制 session id");
           }
         }, 1200);
       });

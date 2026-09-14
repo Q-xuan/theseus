@@ -1,5 +1,8 @@
 #!/usr/bin/env python3
-"""Stage theseus-app-server as a Tauri externalBin (host triple suffix)."""
+"""v0.8: product sidecar is PATH `pi --mode rpc`, not an embedded binary.
+
+Kept so older docs / `build-desktop.py --check` still find this file.
+"""
 
 from __future__ import annotations
 
@@ -12,7 +15,6 @@ from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
 BIN_DIR = ROOT / "crates" / "theseus-desktop" / "binaries"
-SIDECAR_STEM = "theseus-app-server"
 
 
 def host_triple() -> str:
@@ -39,56 +41,24 @@ def exe_suffix(triple: str) -> str:
 
 def staged_name(triple: str | None = None) -> str:
     triple = triple or host_triple()
-    return f"{SIDECAR_STEM}-{triple}{exe_suffix(triple)}"
+    return f"pi-on-path-{triple}{exe_suffix(triple)}"
 
 
 def sidecar_src(profile: str, triple: str) -> Path:
-    suffix = exe_suffix(triple)
-    target_root = ROOT / "target"
-    crossed = target_root / triple / profile / f"{SIDECAR_STEM}{suffix}"
-    native = target_root / profile / f"{SIDECAR_STEM}{suffix}"
-    if crossed.is_file():
-        return crossed
-    return native
-
-
-def build_sidecar(profile: str) -> None:
-    args = ["cargo", "build", "-p", "theseus-app-server", "-q"]
-    if profile == "release":
-        args.append("--release")
-    subprocess.check_call(args, cwd=ROOT)
-
-
-def stage(profile: str = "release", build: bool = True) -> Path:
-    triple = host_triple()
-    if build:
-        build_sidecar(profile)
-    src = sidecar_src(profile, triple)
-    if not src.is_file():
-        raise SystemExit(f"sidecar missing: {src} (build theseus-app-server first)")
-    BIN_DIR.mkdir(parents=True, exist_ok=True)
-    dest = BIN_DIR / staged_name(triple)
-    shutil.copy2(src, dest)
-    dest.chmod(dest.stat().st_mode | 0o111)
-    return dest
+    del profile, triple
+    return BIN_DIR / "README.md"
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--profile", choices=("debug", "release"), default="release")
-    parser.add_argument("--check", action="store_true", help="print paths; do not copy")
+    parser.add_argument("--check", action="store_true")
     parser.add_argument("--no-build", action="store_true")
     args = parser.parse_args()
-    triple = host_triple()
-    dest = BIN_DIR / staged_name(triple)
-    src = sidecar_src(args.profile, triple)
-    print(f"host_triple {triple}")
-    print(f"sidecar_src {src}")
-    print(f"staged {dest}")
-    if args.check:
-        return
-    path = stage(profile=args.profile, build=not args.no_build)
-    print(f"copied {path} ({path.stat().st_size} bytes)")
+    del args
+    print(f"host_triple {host_triple()}")
+    print("sidecar PATH pi --mode rpc (not embedded theseus-app-server)")
+    print("https://github.com/badlogic/pi-mono")
 
 
 if __name__ == "__main__":

@@ -1,8 +1,10 @@
 #!/usr/bin/env python3
 """Build a local theseus-desktop package on the machine that will run it.
 
-macOS / Windows: `cargo tauri build --features gui` after staging the sidecar.
-Linux: `--check` (CI) or `--portable` (two-binary smoke folder). No .app / NSIS.
+macOS / Windows: `cargo tauri build --features gui`.
+Linux: `--check` (CI) or `--portable` (preview binary). No .app / NSIS.
+
+v0.8 product sidecar is PATH `pi --mode rpc`, not an embedded theseus-app-server.
 """
 
 from __future__ import annotations
@@ -35,46 +37,14 @@ def expected_artifacts(triple: str) -> list[str]:
     if "apple-darwin" in triple:
         return [
             "target/release/bundle/macos/Theseus.app",
-            "target/release/bundle/dmg/Theseus_0.7.1_aarch64.dmg  (or x64)",
+            "target/release/bundle/dmg/Theseus_0.8.0_aarch64.dmg  (or x64)",
         ]
     if "windows" in triple:
         return [
-            "target/release/bundle/nsis/Theseus_0.7.1_x64-setup.exe  (or arm64)",
+            "target/release/bundle/nsis/Theseus_0.8.0_x64-setup.exe  (or arm64)",
             "dist/theseus-portable-<triple>/   (if --portable)",
         ]
     return ["(this host does not emit .app / NSIS)"]
-
-
-def assert_before_build_finds_sidecar_script(conf_text: str) -> None:
-    """Tauri 2.2 string hooks run from frontend_dir, not tauri.conf.json's dir.
-
-    Without a package.json that is crates/ (parent of theseus-desktop). The v0.5.1
-    command `python3 ../../packaging/prepare_sidecar.py` therefore resolved to
-    the repo *parent*. Require an explicit cwd so the script is found from the
-    repo root after tauri-cli set_current_dir(tauri_dir).
-    """
-    data = json.loads(conf_text)
-    before = data.get("build", {}).get("beforeBuildCommand")
-    if not isinstance(before, dict):
-        raise SystemExit(
-            "beforeBuildCommand must be {script, cwd}. A string hook uses "
-            "Tauri frontend_dir (crates/ here), so ../../packaging escapes "
-            "the workspace — see tag v0.5.1 release-desktop failure."
-        )
-    script = before.get("script") or ""
-    if "prepare_sidecar.py" not in script:
-        raise SystemExit("beforeBuildCommand.script must invoke prepare_sidecar.py")
-    hook_cwd = Path(before.get("cwd") or ".")
-    resolved_cwd = (DESKTOP / hook_cwd).resolve()
-    token = next((part for part in script.split() if part.endswith("prepare_sidecar.py")), None)
-    if token is None:
-        raise SystemExit("beforeBuildCommand.script must pass prepare_sidecar.py")
-    script_path = Path(token) if Path(token).is_absolute() else (resolved_cwd / token)
-    if not script_path.is_file():
-        raise SystemExit(
-            f"beforeBuildCommand cannot find {script_path} "
-            f"(cwd={hook_cwd} from {DESKTOP} -> {resolved_cwd})"
-        )
 
 
 def run_check() -> None:
@@ -83,21 +53,22 @@ def run_check() -> None:
     required = [
         '"active": true',
         '"createUpdaterArtifacts": false',
-        "binaries/theseus-app-server",
         '"productName": "Theseus"',
         '"identifier": "dev.theseus.desktop"',
-        '"version": "0.7.1"',
+        '"version": "0.8.0"',
         '"signingIdentity": "-"',
         '"certificateThumbprint": null',
+        "pi --mode rpc",
     ]
     if "pi.app" in text or "pi_0.5.0" in text or '"productName": "pi"' in text:
         raise SystemExit("tauri.conf.json still uses pi installer branding")
+    if "binaries/theseus-app-server" in text:
+        raise SystemExit("tauri.conf.json must not embed theseus-app-server")
     missing = [item for item in required if item not in text]
     if missing:
         raise SystemExit(f"tauri.conf.json missing {missing}")
     if '"updater"' in text:
         raise SystemExit("tauri.conf.json must not enable the updater plugin")
-    assert_before_build_finds_sidecar_script(text)
     workflow = ROOT / ".github" / "workflows" / "release-desktop.yml"
     if not workflow.is_file():
         raise SystemExit("missing .github/workflows/release-desktop.yml")
@@ -108,6 +79,8 @@ def run_check() -> None:
         "packaging/build-desktop.py",
         "workflow_dispatch",
         "v*",
+        "Theseus_*_x64-setup.exe",
+        "0.8.0",
     ):
         if needle not in wf:
             raise SystemExit(f"release-desktop.yml missing {needle!r}")
@@ -124,6 +97,7 @@ def run_check() -> None:
     print("linux CI: cargo test --workspace && python3 packaging/build-desktop.py --check")
     print("macOS/Windows package: python3 packaging/build-desktop.py")
     print("GitHub Release (unsigned): push an existing v* tag, or workflow_dispatch with that tag")
+    print("Windows needs pi on PATH: https://github.com/badlogic/pi-mono")
     for line in expected_artifacts(sidecar.host_triple()):
         print(f"  artifact {line}")
 
@@ -135,30 +109,22 @@ def assemble_portable(profile: str) -> Path:
         shutil.rmtree(dest_dir)
     dest_dir.mkdir(parents=True)
     suffix = sidecar.exe_suffix(triple)
-    staged = sidecar.stage(profile=profile, build=True)
     args = ["cargo", "build", "-p", "theseus-desktop", "-q"]
     if profile == "release":
         args.append("--release")
-    # Portable folder on Linux is the preview binary (no gui). On Mac/Win, gui.
     if host_os() != "linux":
         args.extend(["--features", "gui"])
     subprocess.check_call(args, cwd=ROOT)
     desktop_src = ROOT / "target" / profile / f"theseus-desktop{suffix}"
-    server_src = sidecar.sidecar_src(profile, triple)
     if not desktop_src.is_file():
         raise SystemExit(f"theseus-desktop missing: {desktop_src}")
-    if not server_src.is_file():
-        server_src = staged
     shutil.copy2(desktop_src, dest_dir / desktop_src.name)
-    shutil.copy2(server_src, dest_dir / f"theseus-app-server{suffix}")
     (dest_dir / "README.txt").write_text(
-        "Theseus portable folder\n"
-        "Keep both binaries in this directory. Double-click theseus-desktop "
-        "(the Tauri bundle uses the name Theseus).\n"
-        "THESEUS_LLM_API_KEY is inherited from the user/system environment, "
-        "or pasted on the one settings card into the user environment / OS keychain.\n"
-        "Never written to the repo, jsonl, or this folder. Legacy PI_* names still work as a temporary fallback.\n"
-        "Closing the window must kill theseus-app-server.\n",
+        "Theseus portable folder (v0.8)\n"
+        "This shell talks to `pi --mode rpc` on PATH.\n"
+        "Install https://github.com/badlogic/pi-mono and ensure `pi` is visible\n"
+        "to GUI apps (Windows: not only your shell).\n"
+        "Keys and providers stay inside pi. No ~/.theseus key files.\n",
         encoding="utf-8",
     )
     print(f"portable {dest_dir}")
@@ -171,8 +137,8 @@ def run_tauri_build() -> None:
             "Linux does not produce .app / NSIS. Use --check or --portable, "
             "or run this script on macOS / Windows."
         )
-    sidecar.stage(profile="release", build=True)
     tauri = shutil.which("cargo-tauri") or shutil.which("tauri")
+    del tauri
     cmd = ["cargo", "tauri", "build", "--features", "gui"]
     print("running", " ".join(cmd), "in", DESKTOP)
     try:
@@ -180,12 +146,12 @@ def run_tauri_build() -> None:
     except FileNotFoundError as err:
         raise SystemExit(
             "tauri-cli missing. Install: cargo install tauri-cli --version '^2.2'\n"
-            f"or assemble a two-binary folder: python3 packaging/build-desktop.py --portable\n({err})"
+            f"or assemble a portable folder: python3 packaging/build-desktop.py --portable\n({err})"
         ) from err
     except subprocess.CalledProcessError as err:
         if err.returncode != 0:
             print(
-                "tauri build failed. A two-binary portable folder still works:\n"
+                "tauri build failed. A portable folder still works:\n"
                 "  python3 packaging/build-desktop.py --portable",
                 file=sys.stderr,
             )
@@ -193,10 +159,6 @@ def run_tauri_build() -> None:
     print("bundle outputs under target/release/bundle/")
     bundle = ROOT / "target" / "release" / "bundle"
     if bundle.is_dir():
-        for path in sorted(bundle.rglob("*")):
-            if path.is_file() and path.suffix.lower() in {".app", ".dmg", ".exe", ".msi"} or path.suffix == ".app":
-                print(f"  {path}")
-        # .app is a directory
         for path in sorted(bundle.glob("macos/*.app")):
             print(f"  {path}")
         for path in sorted(bundle.glob("dmg/*")):

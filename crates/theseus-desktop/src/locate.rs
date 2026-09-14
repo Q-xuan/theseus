@@ -1,110 +1,84 @@
 use std::env;
 use std::path::{Path, PathBuf};
 
-use crate::{ENV_SERVER_BIN, ENV_SERVER_BIN_LEGACY};
-
-const TARGET_TRIPLE: &str = env!("THESEUS_TARGET_TRIPLE");
+use crate::{ENV_PI_BIN, ENV_PI_BIN_LEGACY};
 
 #[derive(Debug, thiserror::Error)]
 pub enum LocateError {
-    #[error("{ENV_SERVER_BIN}={path} is not a file")]
+    #[error("{ENV_PI_BIN}={path} is not a file")]
     EnvNotAFile { path: String },
     #[error(
-        "theseus-app-server binary not found. A packaged app should ship it next to \
-         this executable. For a source tree: `cargo build -p theseus-app-server` \
-         or set {ENV_SERVER_BIN}."
+        "pi not found on PATH. Theseus desktop talks to `pi --mode rpc` \
+         (https://github.com/badlogic/pi-mono). Install `pi` and put it on PATH \
+         so GUI apps can see it (Windows: not only your shell). \
+         Override with {ENV_PI_BIN}=/path/to/pi"
     )]
     NotFound,
 }
 
+/// `pi` on this platform (`pi.exe` / `pi.cmd` still match via PATH search).
 pub fn bin_name() -> &'static str {
     if cfg!(windows) {
-        "theseus-app-server.exe"
+        "pi.exe"
     } else {
-        "theseus-app-server"
+        "pi"
     }
 }
 
-/// Names Tauri may copy into the bundle (plain, or still triple-suffixed).
-pub fn sidecar_file_names() -> Vec<String> {
-    let suffix = if cfg!(windows) { ".exe" } else { "" };
-    vec![
-        bin_name().to_string(),
-        format!("theseus-app-server-{TARGET_TRIPLE}{suffix}"),
-    ]
+fn candidate_names() -> Vec<String> {
+    let mut names = vec!["pi".to_string()];
+    if cfg!(windows) {
+        names.push("pi.exe".into());
+        names.push("pi.cmd".into());
+        names.push("pi.bat".into());
+    }
+    names
 }
 
-/// Directories that may hold the embedded sidecar after `tauri build`.
-pub fn bundle_sidecar_dirs(exe_dir: &Path) -> Vec<PathBuf> {
-    let mut dirs = vec![exe_dir.to_path_buf()];
-    dirs.push(exe_dir.join("resources"));
-    dirs.push(exe_dir.join("binaries"));
-    if exe_dir.file_name().and_then(|n| n.to_str()) == Some("MacOS") {
-        if let Some(contents) = exe_dir.parent() {
-            dirs.push(contents.join("MacOS"));
-            dirs.push(contents.join("Resources"));
-            dirs.push(contents.join("Resources").join("binaries"));
+fn is_executable_file(path: &Path) -> bool {
+    if !path.is_file() {
+        return false;
+    }
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        if let Ok(meta) = path.metadata() {
+            return meta.permissions().mode() & 0o111 != 0;
         }
     }
-    dirs
+    true
 }
 
-pub fn first_existing(dirs: &[PathBuf], names: &[String]) -> Option<PathBuf> {
-    for dir in dirs {
-        for name in names {
-            let path = dir.join(name);
-            if path.is_file() {
-                return Some(path);
+/// Walk PATH (and Windows PATHEXT) for `pi`.
+pub fn search_path() -> Option<PathBuf> {
+    let path_os = env::var_os("PATH")?;
+    let names = candidate_names();
+    for dir in env::split_paths(&path_os) {
+        for name in &names {
+            let candidate = dir.join(name);
+            if is_executable_file(&candidate) {
+                return Some(candidate);
             }
         }
     }
     None
 }
 
-/// Resolve the sidecar binary. Never consults UI or a settings file.
-pub fn locate_app_server() -> Result<PathBuf, LocateError> {
-    if let Some(raw) = theseus_core::first_nonempty_env(&[ENV_SERVER_BIN, ENV_SERVER_BIN_LEGACY]) {
+/// Resolve the `pi` binary. Never consults UI or a settings file.
+pub fn locate_pi() -> Result<PathBuf, LocateError> {
+    if let Some(raw) = theseus_core::first_nonempty_env(&[ENV_PI_BIN, ENV_PI_BIN_LEGACY]) {
         let path = PathBuf::from(&raw);
         if path.is_file() {
             return Ok(path);
         }
         return Err(LocateError::EnvNotAFile { path: raw });
     }
-
-    let names = sidecar_file_names();
-    let mut dirs = Vec::new();
-
-    if let Ok(exe) = env::current_exe() {
-        if let Some(dir) = exe.parent() {
-            dirs.extend(bundle_sidecar_dirs(dir));
-        }
-    }
-
-    dirs.extend(target_dirs());
-
-    first_existing(&dirs, &names).ok_or(LocateError::NotFound)
+    search_path().ok_or(LocateError::NotFound)
 }
 
-fn target_dirs() -> Vec<PathBuf> {
-    let mut dirs = Vec::new();
-    let manifest = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    if let Some(ws) = manifest.parent().and_then(|p| p.parent()) {
-        push_profile_targets(&mut dirs, ws);
-    }
-    if let Ok(cwd) = env::current_dir() {
-        for anc in cwd.ancestors() {
-            push_profile_targets(&mut dirs, anc);
-            if anc.join("Cargo.toml").is_file() && anc.join("crates").is_dir() {
-                break;
-            }
-        }
-    }
-    dirs
-}
-
-fn push_profile_targets(dirs: &mut Vec<PathBuf>, root: &Path) {
-    dirs.push(root.join("target/debug"));
-    dirs.push(root.join("target/release"));
+/// Back-compat alias used by older tests / docs that said “app server”.
+pub fn locate_app_server() -> Result<PathBuf, LocateError> {
+    locate_pi()
 }
 
 #[cfg(test)]
@@ -112,40 +86,30 @@ mod tests {
     use super::*;
 
     #[test]
-    fn bin_name_matches_platform() {
+    fn bin_name_is_pi() {
         let name = bin_name();
-        assert!(name.starts_with("theseus-app-server"));
+        assert!(name.starts_with("pi"));
         if cfg!(windows) {
             assert!(name.ends_with(".exe"));
         }
     }
 
     #[test]
-    fn sidecar_names_include_plain_and_triple() {
-        let names = sidecar_file_names();
-        assert!(names.iter().any(|n| n == bin_name()));
-        assert!(names.iter().any(|n| n.contains(TARGET_TRIPLE)));
-        assert!(!TARGET_TRIPLE.is_empty());
-        assert_ne!(TARGET_TRIPLE, "unknown");
+    fn missing_env_file_is_a_clear_error() {
+        let err = LocateError::EnvNotAFile {
+            path: "/no/such/pi".into(),
+        };
+        let text = err.to_string();
+        assert!(text.contains(ENV_PI_BIN));
+        assert!(text.contains("/no/such/pi"));
     }
 
     #[test]
-    fn macos_bundle_dirs_include_contents_macos_and_resources() {
-        let macos = PathBuf::from("/Applications/Theseus.app/Contents/MacOS");
-        let dirs = bundle_sidecar_dirs(&macos);
-        assert!(dirs.iter().any(|d| d.ends_with("MacOS")));
-        assert!(dirs.iter().any(|d| d.ends_with("Resources")));
-    }
-
-    #[test]
-    fn first_existing_prefers_plain_name_beside_exe() {
-        let root = env::temp_dir().join(format!("theseus-locate-{}", std::process::id()));
-        let _ = std::fs::remove_dir_all(&root);
-        std::fs::create_dir_all(&root).unwrap();
-        let bin = root.join(bin_name());
-        std::fs::write(&bin, b"sidecar").unwrap();
-        let found = first_existing(&[root.clone()], &sidecar_file_names()).unwrap();
-        assert_eq!(found, bin);
-        let _ = std::fs::remove_dir_all(&root);
+    fn not_found_mentions_path_and_repo() {
+        let text = LocateError::NotFound.to_string();
+        assert!(text.contains("PATH"));
+        assert!(text.contains("pi --mode rpc"));
+        assert!(text.contains("badlogic/pi-mono"));
+        assert!(text.contains(ENV_PI_BIN));
     }
 }

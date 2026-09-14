@@ -1,4 +1,4 @@
-//! Sidecar is a real `theseus-app-server` process. Shutdown must not leave orphans.
+//! Sidecar is a real `pi --mode rpc` process (or the test stand-in). Shutdown must not leave orphans.
 
 use std::io::{Read, Write};
 use std::net::TcpStream;
@@ -7,18 +7,18 @@ use std::process::Command;
 use std::time::Duration;
 
 use serde_json::Value;
-use theseus_desktop::{locate_app_server, Sidecar};
+use theseus_desktop::Sidecar;
 
-fn ensure_server_bin() -> PathBuf {
-    if let Ok(p) = locate_app_server() {
-        return p;
+fn fake_pi_bin() -> PathBuf {
+    let path = PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("tests/fake_pi.py");
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let mut perm = std::fs::metadata(&path).expect("fake_pi.py").permissions();
+        perm.set_mode(0o755);
+        std::fs::set_permissions(&path, perm).unwrap();
     }
-    let status = Command::new("cargo")
-        .args(["build", "-p", "theseus-app-server", "-q"])
-        .status()
-        .expect("cargo build theseus-app-server");
-    assert!(status.success(), "cargo build -p theseus-app-server");
-    locate_app_server().expect("theseus-app-server after build")
+    path
 }
 
 fn process_exists(pid: u32) -> bool {
@@ -41,17 +41,17 @@ fn process_exists(pid: u32) -> bool {
 }
 
 #[test]
-fn spawn_initialize_thread_start_then_shutdown_reaps_child() {
-    let bin = ensure_server_bin();
+fn spawn_get_state_new_session_then_shutdown_reaps_child() {
+    let bin = fake_pi_bin();
     let (sidecar, rx) = Sidecar::spawn(&bin).expect("spawn sidecar");
     let pid = sidecar.pid();
     assert!(
         process_exists(pid),
-        "sidecar should be alive after initialize"
+        "sidecar should be alive after get_state handshake"
     );
 
     sidecar
-        .send_line(r#"{"jsonrpc":"2.0","id":1,"method":"thread/start","params":{}}"#)
+        .send_line(r#"{"id":1,"type":"new_session"}"#)
         .unwrap();
 
     let deadline = std::time::Instant::now() + Duration::from_secs(5);
@@ -63,20 +63,14 @@ fn spawn_initialize_thread_start_then_shutdown_reaps_child() {
                 "bridge must not echo secrets: {line}"
             );
             if let Ok(v) = serde_json::from_str::<Value>(&line) {
-                if v.get("id") == Some(&Value::from(1)) {
+                if v.get("id") == Some(&Value::from(1)) && v.get("command") == Some(&Value::from("new_session")) {
                     found = Some(v);
                 }
             }
         }
     }
-    let v = found.expect("thread/start");
-    let thread_id = v["result"]["thread"]["id"].as_str().expect("thread.id");
-    assert!(thread_id.starts_with("thr_"));
-    let path = v["result"]["thread"]["path"].as_str().expect("thread.path");
-    assert!(
-        std::path::Path::new(path).is_file(),
-        "expected jsonl at {path}"
-    );
+    let v = found.expect("new_session");
+    assert_eq!(v["success"], true);
 
     sidecar.shutdown();
     let gone_deadline = std::time::Instant::now() + Duration::from_secs(3);
@@ -91,7 +85,7 @@ fn spawn_initialize_thread_start_then_shutdown_reaps_child() {
 
 #[tokio::test]
 async fn preview_health_does_not_mention_secrets() {
-    let bin = ensure_server_bin();
+    let bin = fake_pi_bin();
     let (sidecar, rx) = Sidecar::spawn(&bin).expect("spawn");
     let listener = tokio::net::TcpListener::bind("127.0.0.1:0").await.unwrap();
     let addr = listener.local_addr().unwrap();
@@ -122,7 +116,7 @@ async fn preview_health_does_not_mention_secrets() {
     .unwrap();
 
     assert!(body.contains(r#""ok":true"#), "{body}");
-    assert!(body.contains("stdio-sidecar"), "{body}");
+    assert!(body.contains("pi-rpc"), "{body}");
     assert!(!body.contains("sk-"));
     assert!(!body.contains("THESEUS_LLM_API_KEY"));
 
@@ -158,9 +152,8 @@ async fn preview_health_does_not_mention_secrets() {
     })
     .await
     .unwrap();
-    assert!(settings_body.contains("\"baseUrl\""), "{settings_body}");
     assert!(settings_body.contains("\"workspace\""), "{settings_body}");
-    assert!(settings_body.contains("\"keyConfigured\""), "{settings_body}");
+    assert!(settings_body.contains("\"provider\""), "{settings_body}");
     assert!(!settings_body.contains("THESEUS_LLM_API_KEY"));
     assert!(!settings_body.contains("sk-"));
     sidecar.shutdown();
