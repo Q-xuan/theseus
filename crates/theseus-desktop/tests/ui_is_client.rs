@@ -5,16 +5,7 @@ fn desktop_ui_stays_a_client() {
     let html = include_str!("../ui/index.html");
     let js = include_str!("../ui/app.js");
     let css = include_str!("../ui/app.css");
-    assert!(
-        js.contains("未配置 THESEUS_LLM_API_KEY"),
-        "missing-key banner is a short env-var hint"
-    );
-    let js_without_banner = js.replace("未配置 THESEUS_LLM_API_KEY", "");
-    let html_without_key_field = html.replace(
-        r#"<input id="prefs-key" type="password" autocomplete="off" spellcheck="false" placeholder="粘贴后只写入本机用户环境 / 钥匙串" />"#,
-        "",
-    );
-    for hay in [html_without_key_field.as_str(), js_without_banner.as_str(), css] {
+    for hay in [html, js, css] {
         assert!(!hay.contains("THESEUS_LLM_API_KEY"));
         assert!(!hay.contains("PI_LLM_API_KEY"));
         assert!(!hay.contains("apiKey"));
@@ -27,22 +18,24 @@ fn desktop_ui_stays_a_client() {
         assert!(!hay.contains("PI_SESSIONS_DIR"));
         assert!(!hay.contains("THESEUS_HOME"));
         assert!(!hay.contains("PI_HOME"));
-        assert!(!hay.contains(".theseus"));
-        assert!(!hay.contains(".pi-app"));
         assert!(!hay.contains("THESEUS_TOOL_APPROVAL"));
         assert!(!hay.contains("PI_TOOL_APPROVAL"));
+        assert!(!hay.contains("\"thread/start\""));
+        assert!(!hay.contains("\"thread/resume\""));
+        assert!(!hay.contains("\"thread/list\""));
+        assert!(!hay.contains("\"turn/start\""));
+        assert!(!hay.contains("\"turn/interrupt\""));
+        assert!(!hay.contains("\"tool/approve\""));
+        assert!(!hay.contains("\"tool/reject\""));
+        assert!(!hay.contains("theseus-app-server"));
     }
     assert!(html.contains("data-app=\"theseus-desktop\""));
     assert!(html.contains("id=\"sessions\""), "sidebar session list");
     assert!(html.contains("最近"), "recency list label");
-    assert!(html.contains("id=\"approval\""));
-    assert!(
-        html.contains("id=\"dock\""),
-        "composer dock for the one gate"
-    );
+    assert!(html.contains("id=\"dock\""));
     assert!(html.contains("新对话"));
     assert!(html.contains("id=\"copy-thread-id\""), "quiet optional copy affordance");
-    assert!(!html.contains("复制 id"), "thread id is not a primary path");
+    assert!(!html.contains("复制 id"), "session id is not a primary path");
     assert!(!html.contains("id=\"thread-id-box\""));
     assert!(!html.contains("id=\"meta\""), "one workspace chip only");
     assert!(html.contains("id=\"prefs\""), "one closable settings card");
@@ -50,12 +43,15 @@ fn desktop_ui_stays_a_client() {
     assert!(html.contains("id=\"stop\""), "composer Stop");
     assert!(html.contains("id=\"workspace-chip\""), "current workspace");
     assert!(html.contains("id=\"empty-cta\""), "centered empty CTA");
+    assert!(!html.contains("id=\"approval\""), "Theseus approval gate is off the product path");
+    assert!(!html.contains("id=\"prefs-key\""), "keys stay inside pi");
     assert!(!html.contains("危险工具"), "defer gate tip off the empty state");
     assert!(!html.contains(">停止<"), "Stop is a circular icon, not a text button");
     assert!(!html.contains("type=\"search\""));
     assert!(!html.contains("short-link"));
     assert!(!html.contains("oauth"));
     assert!(!html.contains("OAuth"));
+    assert!(html.contains("badlogic/pi-mono"), "settings cite pi");
     assert!(!js.contains("shareUrl"));
     assert!(!js.contains("shortLink"));
     assert!(
@@ -69,30 +65,34 @@ fn desktop_ui_stays_a_client() {
     assert!(js.contains("scrollToTurn"));
     assert!(js.contains("dataset.turn"), "turn marks carry a turn index");
     assert!(js.contains("item/agentMessage/delta"));
-    assert!(js.contains("thread/start"));
-    assert!(js.contains("thread/resume"));
-    assert!(js.contains("thread/list"));
-    assert!(js.contains("turn/start"));
-    assert!(js.contains("turn/interrupt"), "Stop uses existing end semantics");
-    assert!(js.contains("tool/approve"));
-    assert!(js.contains("tool/reject"));
-    assert!(js.contains("item/tool/approval/request"));
+    assert!(js.contains("new_session"));
+    assert!(js.contains("switch_session"));
+    assert!(js.contains("list_sessions"));
+    assert!(js.contains("prompt"));
+    assert!(js.contains("abort"), "Stop uses pi abort");
+    assert!(js.contains("clear_queue"));
+    assert!(js.contains("get_state"));
+    assert!(js.contains("get_messages") || js.contains("get_entries"));
+    assert!(js.contains("set_session_name"));
+    assert!(js.contains("agent_settled"));
+    assert!(js.contains("已停止"), "Stop copy aligns with settled");
+    assert!(js.contains("isStreaming"));
+    assert!(js.contains("requestAnimationFrame") || js.contains("BATCH_MS"));
     assert!(js.contains("readableError"));
     assert!(js.contains("turn-mark"));
     assert!(js.contains("tool-head"));
     assert!(js.contains("clipboard.writeText") || js.contains("copyText"));
-    assert!(js.contains("showThreadId"));
     assert!(js.contains("shortLabel"), "titles and sidebar do not dump long prompts");
     assert!(js.contains("TITLE_MAX = 28"), "header title is first-sentence + hard cap");
     assert!(js.contains("firstSentence"));
     assert!(js.contains("[。！？!?]"), "title cuts at the first sentence");
+    assert!(js.contains("relativeTime"), "sidebar shows relative time");
     assert!(
         js.contains("setTitle(text, \"新对话\")"),
         "after send / while streaming, title truncates the user prompt"
     );
     assert!(!js.contains("titleEl.textContent = text"));
     assert!(!js.contains("class=\"who\""), "no 你/助手 role tags");
-    assert!(!js.contains("t.preview || t.id"), "sidebar is preview only");
     assert!(
         !js.contains("session/event"),
         "UI must project Item/delta, not raw session log"
@@ -107,20 +107,18 @@ fn desktop_ui_stays_a_client() {
 fn chrome_cites_dsh_modules_not_a_pixel_clone() {
     let css = include_str!("../ui/app.css");
     assert!(css.contains("SidebarRoot.module.css"));
-    assert!(css.contains("ApprovalPanel"));
     assert!(css.contains("GenericToolCard"));
     assert!(css.contains("28px"), "compact new-session bar height");
-    assert!(css.contains("gate-strip"), "amber approval strip");
     assert!(css.contains("#0c0c0c"), "Codex-like near-black paper");
     assert!(css.contains("#161616"), "charcoal rail");
     assert!(css.contains("#1a2a40"), "muted-blue selected row");
     let html = include_str!("../ui/index.html");
-    assert!(html.contains("需要确认才能继续"));
     assert!(!html.contains("id=\"run-state\""), "busy lives on spinner + Stop");
     assert!(css.contains("composer-strip"), "model strip on composer bottom");
     assert!(css.contains(".timeline"), "turn ticks");
     assert!(css.contains(".stop-sq"), "circular Stop with square inside");
     assert!(css.contains("border-radius: 50%"), "circular Stop");
+    assert!(css.contains(".session-time"), "sidebar relative time");
     assert!(!html.contains("Plugins"));
     assert!(!html.contains("Pull requests"));
     assert!(!html.contains("Scheduled"));
@@ -139,7 +137,9 @@ fn rust_shell_does_not_take_key_as_flag() {
     let gui = include_str!("../src/gui.rs");
     assert!(!main.contains("--api-key"));
     assert!(!main.contains("--api_key"));
-    assert!(sidecar.contains("Never pass the key as an argument"));
+    assert!(sidecar.contains("sidecar argv must not carry secrets"));
+    assert!(sidecar.contains("--mode"));
+    assert!(sidecar.contains("rpc"));
     assert!(!main.contains("updater"));
     assert!(!gui.contains("updater"));
     assert!(!gui.contains("Updater"));
@@ -165,4 +165,16 @@ fn release_gui_uses_windows_subsystem_and_quiet_stdio() {
     assert!(sidecar.contains("verbose_stdio"));
     let lib = include_str!("../src/lib.rs");
     assert!(lib.contains("fn verbose_stdio"));
+}
+
+#[test]
+fn product_path_is_pi_rpc_only() {
+    let sidecar = include_str!("../src/sidecar.rs");
+    let bridge = include_str!("../src/bridge.rs");
+    let map = include_str!("../src/map.rs");
+    assert!(sidecar.contains("pi --mode rpc") || sidecar.contains("\"rpc\""));
+    assert!(map.contains("is_theseus_app_server_method"));
+    assert!(bridge.contains("product path is pi --mode rpc only"));
+    assert!(bridge.contains("pi-rpc"));
+    assert!(!sidecar.contains("theseus-app-server"));
 }

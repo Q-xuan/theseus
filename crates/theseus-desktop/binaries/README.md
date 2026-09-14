@@ -1,18 +1,7 @@
-# Sidecar staging (Tauri `externalBin`)
+# Sidecar is PATH `pi`
 
-`tauri build` 在打包前要看到带 **host triple** 后缀的 `theseus-app-server`：
+v0.8 起桌面产品路径拉起 **`pi --mode rpc`**，不再把 `theseus-app-server` 打进包。
 
-```
-theseus-app-server-aarch64-apple-darwin
-theseus-app-server-x86_64-apple-darwin
-theseus-app-server-x86_64-pc-windows-msvc.exe
-```
+安装 [pi](https://github.com/badlogic/pi-mono)，保证 GUI 进程也能在 PATH 上找到 `pi`（Windows 不只是你的 shell）。调试可设 `THESEUS_PI_BIN`。
 
-不要手拷。在仓库根：
-
-```bash
-python3 packaging/prepare_sidecar.py
-# 或一把做完：python3 packaging/build-desktop.py
-```
-
-这些二进制是本机构建产物，**不进 git**。
+这个目录只给 Tauri 占位；不要手拷二进制进 git。

@@ -1,24 +1,26 @@
-//! v0.5 packaging contract: local unsigned bundle, embedded sidecar, no updater.
+//! v0.8 packaging contract: local unsigned bundle, PATH `pi`, no updater.
 
 use std::path::PathBuf;
 
 #[test]
-fn tauri_bundle_is_local_unsigned_with_sidecar() {
+fn tauri_bundle_is_local_unsigned_path_pi() {
     let conf: serde_json::Value =
         serde_json::from_str(include_str!("../tauri.conf.json")).expect("tauri.conf.json");
     assert_eq!(conf["productName"], "Theseus");
     assert_eq!(conf["identifier"], "dev.theseus.desktop");
-    assert_eq!(conf["version"], "0.7.1");
+    assert_eq!(conf["version"], "0.8.0");
     assert_eq!(conf["bundle"]["active"], true);
     assert_eq!(conf["bundle"]["createUpdaterArtifacts"], false);
-    let bins = conf["bundle"]["externalBin"]
-        .as_array()
-        .expect("externalBin");
-    assert!(
-        bins.iter()
-            .any(|b| b.as_str() == Some("binaries/theseus-app-server")),
-        "{bins:?}"
-    );
+    let bins = conf["bundle"].get("externalBin");
+    if let Some(arr) = bins.and_then(|b| b.as_array()) {
+        assert!(
+            arr.is_empty()
+                || !arr
+                    .iter()
+                    .any(|b| b.as_str() == Some("binaries/theseus-app-server")),
+            "product sidecar is PATH pi, not theseus-app-server: {arr:?}"
+        );
+    }
     assert_eq!(conf["bundle"]["macOS"]["signingIdentity"], "-");
     assert!(conf["bundle"]["windows"]["certificateThumbprint"].is_null());
     let targets = conf["bundle"]["targets"].as_array().expect("targets");
@@ -33,22 +35,6 @@ fn tauri_bundle_is_local_unsigned_with_sidecar() {
         "Linux appimage is not a v0.5 product"
     );
     assert!(conf.get("plugins").is_none());
-    let before = &conf["build"]["beforeBuildCommand"];
-    // Tauri 2.2 runs a string hook from frontend_dir. This repo has no
-    // package.json, so that is tauri_dir.parent() == crates/. A path of
-    // ../../packaging/prepare_sidecar.py therefore escapes the workspace
-    // (v0.5.1 macOS/Windows CI). Pin cwd to the repo root instead; tauri-cli
-    // set_current_dir(tauri_dir) before Command::current_dir(cwd).
-    let script = before.get("script").and_then(|s| s.as_str()).unwrap_or("");
-    assert!(
-        script.contains("prepare_sidecar.py"),
-        "beforeBuildCommand.script must invoke prepare_sidecar.py: {before}"
-    );
-    assert_eq!(
-        before.get("cwd").and_then(|c| c.as_str()),
-        Some("../.."),
-        "beforeBuildCommand.cwd must be the repo root from crates/theseus-desktop: {before}"
-    );
 }
 
 #[test]
@@ -108,6 +94,8 @@ fn release_desktop_workflow_is_native_unsigned() {
         "workflow_dispatch",
         "v*",
         "softprops/action-gh-release",
+        "Theseus_*_x64-setup.exe",
+        "0.8.0",
     ] {
         assert!(yml.contains(needle), "missing {needle}");
     }

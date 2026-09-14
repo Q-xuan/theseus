@@ -1,4 +1,4 @@
-use std::io::{BufRead, BufReader, Write};
+use std::io::Write;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command, Stdio};
 use std::sync::mpsc::{self, Receiver};
@@ -6,10 +6,10 @@ use std::sync::{Arc, Mutex};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use crate::locate::{locate_app_server, LocateError};
+use crate::jsonl::read_jsonl;
+use crate::locate::{locate_pi, LocateError};
 
-const INIT_LINE: &str = r#"{"jsonrpc":"2.0","id":0,"method":"initialize","params":{"clientInfo":{"name":"theseus-desktop","version":"0.7.1"}}}"#;
-const SHUTDOWN_LINE: &str = r#"{"jsonrpc":"2.0","id":999999,"method":"shutdown","params":{}}"#;
+const GET_STATE_LINE: &str = r#"{"id":0,"type":"get_state"}"#;
 
 #[derive(Debug, thiserror::Error)]
 pub enum SidecarError {
@@ -23,7 +23,7 @@ pub enum SidecarError {
     },
     #[error("sidecar stdin closed")]
     StdinClosed,
-    #[error("sidecar did not answer initialize")]
+    #[error("pi --mode rpc did not answer get_state")]
     InitializeTimeout,
     #[error("{0}")]
     Io(#[from] std::io::Error),
@@ -36,7 +36,7 @@ struct Inner {
     path: PathBuf,
 }
 
-/// One `theseus-app-server` child. JSON-RPC lines on stdin/stdout (Codex-shaped).
+/// One `pi --mode rpc` child. JSONL commands on stdin, events/responses on stdout.
 #[derive(Clone)]
 pub struct Sidecar {
     inner: Arc<Inner>,
@@ -44,30 +44,27 @@ pub struct Sidecar {
 
 impl Sidecar {
     pub fn start() -> Result<(Self, Receiver<String>), SidecarError> {
-        let path = locate_app_server()?;
+        let path = locate_pi()?;
         Self::spawn(&path)
     }
 
     pub fn spawn(path: &Path) -> Result<(Self, Receiver<String>), SidecarError> {
         let mut cmd = Command::new(path);
+        cmd.arg("--mode").arg("rpc");
         cmd.stdin(Stdio::piped()).stdout(Stdio::piped());
-        // Product GUI: swallow sidecar stderr (`sessions: …` / locate noise).
-        // Preview and debug still inherit so the terminal can show it.
         if crate::verbose_stdio() {
             cmd.stderr(Stdio::inherit());
         } else {
             cmd.stderr(Stdio::null());
         }
-        // Inherit the parent environment (including THESEUS_LLM_API_KEY / PI_LLM_API_KEY).
-        // Never pass the key as an argument. Model and base URL are non-secret:
-        // pin them from env / ~/.theseus so the child matches the settings card.
-        crate::hydrate_process_key();
-        cmd.env(crate::ENV_MODEL, crate::sidecar_model());
-        cmd.env(crate::ENV_BASE_URL, crate::sidecar_base_url());
+        let workspace = crate::resolve_user_workspace();
+        if !workspace.is_empty() {
+            cmd.current_dir(&workspace);
+        }
         debug_assert!(
             cmd.get_args().all(|a| {
                 let s = a.to_string_lossy();
-                !s.contains("THESEUS_LLM") && !s.contains("PI_LLM") && !s.contains("sk-")
+                !s.contains("THESEUS_LLM") && !s.contains("sk-") && !s.contains("API_KEY")
             }),
             "sidecar argv must not carry secrets"
         );
@@ -103,20 +100,7 @@ impl Sidecar {
         let (tx, rx) = mpsc::channel::<String>();
         thread::Builder::new()
             .name("theseus-sidecar-stdout".into())
-            .spawn(move || {
-                let reader = BufReader::new(stdout);
-                for line in reader.lines() {
-                    match line {
-                        Ok(line) if !line.trim().is_empty() => {
-                            if tx.send(line).is_err() {
-                                break;
-                            }
-                        }
-                        Ok(_) => {}
-                        Err(_) => break,
-                    }
-                }
-            })
+            .spawn(move || read_jsonl(stdout, tx))
             .map_err(SidecarError::Io)?;
 
         let sidecar = Self {
@@ -127,23 +111,20 @@ impl Sidecar {
                 path: path.to_path_buf(),
             }),
         };
-        sidecar.initialize(&rx)?;
+        sidecar.handshake(&rx)?;
         Ok((sidecar, rx))
     }
 
-    fn initialize(&self, rx: &Receiver<String>) -> Result<(), SidecarError> {
-        self.send_line(INIT_LINE)?;
-        let deadline = Instant::now() + Duration::from_secs(5);
+    fn handshake(&self, rx: &Receiver<String>) -> Result<(), SidecarError> {
+        self.send_line(GET_STATE_LINE)?;
+        let deadline = Instant::now() + Duration::from_secs(8);
         while Instant::now() < deadline {
             let remain = deadline.saturating_duration_since(Instant::now());
             match rx.recv_timeout(remain.min(Duration::from_millis(200))) {
                 Ok(line) => {
-                    if let Ok(v) = serde_json::from_str::<serde_json::Value>(&line) {
-                        if v.get("id") == Some(&serde_json::json!(0)) {
-                            return Ok(());
-                        }
+                    if is_get_state_response(&line) {
+                        return Ok(());
                     }
-                    // Unexpected pre-init noise: drop. Do not fan out to UI.
                 }
                 Err(mpsc::RecvTimeoutError::Timeout) => continue,
                 Err(mpsc::RecvTimeoutError::Disconnected) => {
@@ -169,14 +150,14 @@ impl Sidecar {
             .lock()
             .map_err(|_| SidecarError::StdinClosed)?;
         let stdin = guard.as_mut().ok_or(SidecarError::StdinClosed)?;
-        writeln!(stdin, "{line}")?;
+        stdin.write_all(line.as_bytes())?;
+        stdin.write_all(b"\n")?;
         stdin.flush()?;
         Ok(())
     }
 
-    /// Ask the child to exit, then kill the process group if it lingers.
+    /// Close stdin and kill the process group if it lingers. No Theseus `shutdown` RPC.
     pub fn shutdown(&self) {
-        let _ = self.send_line(SHUTDOWN_LINE);
         {
             let mut guard = match self.inner.stdin.lock() {
                 Ok(g) => g,
@@ -238,6 +219,17 @@ impl Sidecar {
             let _ = child.kill();
         }
     }
+}
+
+fn is_get_state_response(line: &str) -> bool {
+    let Ok(v) = serde_json::from_str::<serde_json::Value>(line) else {
+        return false;
+    };
+    if v.get("id") != Some(&serde_json::json!(0)) {
+        return false;
+    }
+    v.get("type").and_then(|t| t.as_str()) == Some("response")
+        || v.get("command").and_then(|t| t.as_str()) == Some("get_state")
 }
 
 impl Drop for Sidecar {
